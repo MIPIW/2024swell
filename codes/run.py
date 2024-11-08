@@ -1,6 +1,6 @@
 from datetime import datetime
 from collections import Counter
-import sys, os, pandas as pd
+import sys, os, pandas as pd, numpy as np
 from functools import reduce, partial
 import pickle
 from multiprocessing import Pool
@@ -152,8 +152,9 @@ import torch , logging, transformers
 
 #     # Start pretraining
 #     return trainer
-def ppl_dataset():
-    pass
+def get_dataAvgLength(data): # List[List[str]]
+    x = [len(i) for i in data]
+    return sum(x) / len(x)
 
 def _filter_data(datum): # str
     if datum == None:
@@ -176,7 +177,6 @@ def get_dataStats(data, types, args): # List[str]
         with open(args.file_wordStats_FT, "rb") as f:
             out = pickle.load(f)
             return out
-    
 
     with ParallelUtils() as parallelUtils:
         parallelUtils.change_function(_filter_data)
@@ -186,6 +186,7 @@ def get_dataStats(data, types, args): # List[str]
         data_filtered = data_filtered.to_list() # series[set[str(tokens)]]
         data_filtered = list(reduce(lambda x, y : x | y, data_filtered)) # list[str(tokens)]
     
+    print("-------------------", data_filtered)
     chunk_size = len(data_filtered) // args.num_cores
     with Pool(processes=args.num_cores) as pool:
         total_length = len(data)
@@ -200,8 +201,8 @@ def get_dataStats(data, types, args): # List[str]
     data_tok = [data_filtered[i[0]] for i in data_cnt]
     data_cnt = [data_cnt[i[1]] for i in data_cnt]
 
-    
-    out = {i: (j, k) for i, j, k in zip(data_tok, data_pos, data_cnt)}
+    out = pd.DataFrame({i: (j, k) for i, j, k in zip(data_tok, data_pos, data_cnt)}).T.reset_index()
+    out.columns = ["word", 'pos', 'rat']
 
     if types == "ct":
         with open(args.file_wordStats_CT, "wb") as f:
@@ -212,10 +213,84 @@ def get_dataStats(data, types, args): # List[str]
     
     return out
 
-def get_dataAvgLength(data): # List[List[str]]
-    print(data[0])
-    x = [len(i) for i in data]
-    return sum(x) / len(x)
+
+def _get_includeData(tokenInfo, data): # token: str, data: List[str]
+
+    exist_sents = data.map(lambda x: tokenInfo['word'] in x)
+
+    return exist_sents
+
+# def _select_samples(dataframe, ratio, notExist_sents):
+def _select_samples(word, idx_score, ratio, data):
+
+    lim = sum(idx_score['diff']) * ratio
+    cur = 0
+    res = -1
+    for idx, row in idx_score.iterrows():
+        if cur < lim:
+            cur += row['diff']
+            res += 1
+        else:
+            break
+    selected = idx_score.iloc[:res]['index']
+    len_selected = len(selected)
+
+    exist_sents = data[selected]
+    notExist_sents = data[~idx_score['index']].sample(n=len_selected, random_state=42)
+
+    return exist_sents, notExist_sents
+
+
+def get_existSamples(data, wordStats, pplModel, replaceToken, args): # List[str]
+
+    data = pd.Series(data)
+    wordStats = wordStats # sampled dataframe will come
+    with ParallelUtils() as parallelUtils:
+        parallelUtils.change_function(partial(_get_includeData, data = data))
+        # series[(series[bools])]
+        data_filtered = parallelUtils.do_dataFrame(wordStats, axis = 1, pre_assign = False, num_cores = args.num_cores)
+        data_filtered.name = "sents" # boolean(indeces)
+
+    idx_filtered = data_filtered.map(lambda x: x[x == True].index)
+    d = pd.concat([wordStats, data_filtered], axis = 1)
+    data_filtered_original = d.apply(lambda x: data[x['sents']], axis = 1) # series[str]
+    data_filtered_masked = d.apply(lambda x: [sent.replace(x['word'], replaceToken) for sent in data[x['sents']]], axis = 1).explode() # series[str]
+    data_filtered_original.name = "original"
+
+    # 각각의 단어에 대해 
+    for word, idxes, original_sents, masked_sents in zip(wordStats['word'], idx_filtered, data_filtered_original, data_filtered_masked):
+
+        scores_original = pplModel.get_perplexity(input_texts = original_sents)
+        scores_masked = pplModel.get_perplexity(input_texts = masked_sents)
+        scores_diff = pd.Series((np.array(scores_masked) - np.array(scores_original)))
+        scores_diff.name = "diff"
+
+        idx_score = pd.concat([idxes, scores_diff], axis = 1).sort_values(by = "diff")
+        
+        # 각각의 선발비율에 대해
+        for ratio in args.ratio:
+
+    x = pd.concat([x, scores_diff, data_filtered_original], axis = 1).sort_values(by=['word', "diff"])
+    x = x.groupby("word")
+
+    for ratio in args.ratio:
+        out = x.agg(partial(_select_samples, ratio = ratio)) # ser[(str, List[str], int)]
+
+    return out
+    # 하 이제 어떻게 하지
+
+def get_trainingData(singleTokenInfo, notExistData):
+    token, sents, lens = singleTokenInfo
+
+    
+    
+
+    
+
+
+    
+
+
 
 
 webhook_url = "https://hooks.slack.com/services/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"
@@ -224,15 +299,31 @@ def main(args):
 
     # Load a large corpus dataset for pretraining (e.g., Wikipedia, OpenWebText)
     # dataset_CT = load_dataset(*args.dataset_CT, split="train")
-    dataset_FT = load_dataset(args.dataset_FT)
-
+    # dataset_FT = load_dataset(args.dataset_FT)
+    # with open("x.pk", "wb") as f:
+    #     pickle.dump(dataset_FT, f)
+    with open("x.pk", "rb") as f:
+        dataset_FT = pickle.load(f)
+    
+    
     # baseTokenizer = AutoTokenizer.from_pretrained(args.checkpoint_baseModel)
     # baseModel = AutoModelForMaskedLM.from_pretrained(args.checkpoint_baseModel)
-    avgLength = get_dataAvgLength(dataset_FT['test']['tokens'])
-    wordStats = get_dataStats(dataset_FT['test']['tokens'], "ft", args)
+    temp = [" ".join(i) for i in dataset_FT['test']['tokens']] # List[str]
+    temp1 = [i.split(" ") for i in temp] # List[List[str]]
+    avgLength = get_dataAvgLength(temp1)
+    wordStats = get_dataStats(temp, "ft", args) # 전체를 다 사용하지 못할 수도 있음. (filter wordStats)
+    print(wordStats.head())
 
     # pplModel = lmppl.LM(args.checkpoint_pplModel)
     # pplCheckpoint = AutoTokenizer.from_pretrained(args.checkpoint_pplModel)
+    pplModel = None
+    replaceToken = "<pad>"
+    sampleSents = get_existSamples(temp, wordStats, pplModel, replaceToken, args)
+
+    for e, tokenInfo in sampleSents.iterrows():
+        trainingData_perToken = get_trainingData(tokenInfo, temp)
+    
+    
 
     # trainer = set_trainer(dataset, model, tokenizer)
     # trainer.train()
@@ -252,8 +343,7 @@ if __name__ == "__main__":
         file_wordStats_FT = "/home/hyohyeongjang/2024SWELL/meta/word_ft.pk",
         checkpoint_baseModel = "FacebookAI/roberta-base",
         checkpoint_pplModel = "meta-llama/Meta-Llama-3-8B-Instruct",
-        ratio_CT = [0, 0.2, 0.4, 0.6, 0.8, 1.0],
-        ratio_FT = [0, 0.2, 0.4, 0.6, 0.8, 1.0],
+        ratio = [0, 0.2, 0.4, 0.6, 0.8, 1.0],
         checkpoint_CTModel = "weights/CT_{}",
         checkpoint_FTModel = "weights/FC_{}_{}",
         num_cores = 20
