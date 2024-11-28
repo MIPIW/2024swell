@@ -263,6 +263,8 @@ def main(args):
         
     # and랑 the는 안 됨. when은 masked score가 없음.
     token_list = ['and', 'one', 'the', 'for', 'new', 'time', 'they', 'was', 'has', 'that', 'who']
+    token_list = ['one', 'for', 'new', 'time', 'they', 'was', 'has', 'that', 'who']
+
 
     wordStats_bools = wordStats.apply(lambda x: x['word'] in token_list, axis = 1)
     wordStats = wordStats[wordStats_bools]
