@@ -261,10 +261,8 @@ def main(args):
     with open(args.file_wordStats_CT, "rb") as f:
         wordStats = pickle.load(f)
         
-    # and랑 the는 안 됨
-    token_list = ['and', 'one', 'the', 'for', 'new', 'time', 'they', 'was', 'has', 'that', 'who', 'when']
-    token_list = ['new', 'that', 'was', 'who']
-    token_list = ['new', 'that', 'time', 'was', 'who']
+    # and랑 the는 안 됨. when은 masked score가 없음.
+    token_list = ['and', 'one', 'the', 'for', 'new', 'time', 'they', 'was', 'has', 'that', 'who']
 
     wordStats_bools = wordStats.apply(lambda x: x['word'] in token_list, axis = 1)
     wordStats = wordStats[wordStats_bools]

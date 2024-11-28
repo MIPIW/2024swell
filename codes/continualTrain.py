@@ -8,11 +8,10 @@ from datasets import Dataset
 from argparse import Namespace
 import pickle 
 import torch 
-
 import sys, os
-sys.path.append(os.path.expanduser('~/2024SWELL/dependencies/flash-roberta'))
-from modeling_flash_roberta import FlashRobertaForMaskedLM
-
+sys.path.append(os.path.expanduser('~/2024swell/dependencies/flash-roberta'))
+# no flash_attn module
+# from modeling_flash_roberta import FlashRobertaForMaskedLM
 
 def set_trainer(args, dataset, model, tokenizer, word, ratio, val):
 
@@ -24,6 +23,15 @@ def set_trainer(args, dataset, model, tokenizer, word, ratio, val):
     tokenized_datasets = dataset.map(tokenize_function, batched=True, num_proc=args.num_cores_train, remove_columns=["text"])
     tokenized_datasets.set_format(type = "torch")
     
+    if args.DDP:
+        model.to(args.local_rank)
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
+
+        train_sampler = DistributedSampler(train_dataset)
+        train_loader = DataLoader(train_dataset, batch_size=8, sampler=train_sampler)
+    
+    if args.DP:
+        model = DataParallel(model)
     # tokenized_datasets = dataset.map(tokenize_function, batched=True, num_proc=30, remove_columns=["text"])
 
     # Data collator for MLM
@@ -107,10 +115,34 @@ def main(args):
 
 
 if __name__ == "__main__":
+    
+    # should not be both True
+    # could be both False
+    DDP = False
+    DP = True
+    num_devices = '0,1,2,3,4'
+    print(os.environ['LOCAL_RANK'])
+
+    if DDP:
+        os.environ["CUDA_VISIBLE_DEVICES"] = num_devices 
+        import torch.distributed as dist
+        dist.init_process_group("nccl")
+        local_rank = int(os.environ["LOCAL_RANK"])
+        torch.cuda.set_device(local_rank)
+    else:
+        local_rank = None
+
+    if DP:
+        os.environ["CUDA_VISIBLE_DEVICES"] = num_devices 
+        from torch.nn import DataParallel
+
+
     print(f"started at {datetime.strftime(datetime.now(), '%Y.%m.%d. %H:%M:%S')}")
 
     # words = ['and', 'one', 'the', 'for', 'new', 'time', 'they', 'was', 'has', 'that', 'who', 'when']
-    words = ['and', 'the', 'time', 'was', 'who']
+    words = ['one', 'for', 'new', 'time', 'they', 'was', 'has', 'that', 'who']
+    
+    # words = ['and', 'the', 'time', 'was', 'who']
 
     args = Namespace(
         dataset_CT = ("wikitext", "wikitext-103-v1"), # used in anywhere
@@ -139,13 +171,16 @@ if __name__ == "__main__":
         checkpoint_CTModel = "/home/hyohyeongjang/2024SWELL/weights/CT/CT_{}_{}_{}", # used in continualTrain
         checkpoint_FTModel = "/home/hyohyeongjang/2024SWELL/weights/FT/FT_{}_{}_{}_{}", # used in continualTrain
         max_seq_len = 512,
-        batch_size = 128,
+        batch_size = 64,
         do_RandomInitialize = False,
         num_cores_train = 10
 
     )
 
     args.words = words
+    args.local_rank = local_rank
+    args.DP = DP
+    args.DDP = DDP
 
     main(args)
 
