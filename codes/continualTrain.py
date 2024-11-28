@@ -110,7 +110,6 @@ def main(args):
 
                 trainer = set_trainer(args, dataset_merged, model, tokenizer, word, ratio, val)
                 trainer.train()
-                trainer.save_model(args.checkpoint_CTModel.format(word, val, ratio))
             
 
 
@@ -119,12 +118,14 @@ if __name__ == "__main__":
     # should not be both True
     # could be both False
     DDP = False
-    DP = True
-    num_devices = '0,1,2,3,4'
-    print(os.environ['LOCAL_RANK'])
+    DP = False
+    global_rank = '0'
+    if DP or DDP:
+        os.environ["CUDA_VISIBLE_DEVICES"] = global_rank
+    else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
     if DDP:
-        os.environ["CUDA_VISIBLE_DEVICES"] = num_devices 
         import torch.distributed as dist
         dist.init_process_group("nccl")
         local_rank = int(os.environ["LOCAL_RANK"])
@@ -133,8 +134,9 @@ if __name__ == "__main__":
         local_rank = None
 
     if DP:
-        os.environ["CUDA_VISIBLE_DEVICES"] = num_devices 
         from torch.nn import DataParallel
+
+        
 
 
     print(f"started at {datetime.strftime(datetime.now(), '%Y.%m.%d. %H:%M:%S')}")
@@ -171,7 +173,7 @@ if __name__ == "__main__":
         checkpoint_CTModel = "/home/hyohyeongjang/2024SWELL/weights/CT/CT_{}_{}_{}", # used in continualTrain
         checkpoint_FTModel = "/home/hyohyeongjang/2024SWELL/weights/FT/FT_{}_{}_{}_{}", # used in continualTrain
         max_seq_len = 512,
-        batch_size = 64,
+        batch_size = 32, # 64에 약 25000MiB(100%)
         do_RandomInitialize = False,
         num_cores_train = 10
 
