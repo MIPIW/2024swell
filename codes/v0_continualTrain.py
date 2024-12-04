@@ -26,10 +26,6 @@ def set_trainer(args, dataset, model, tokenizer, word, ratio, val):
     if args.DDP:
         model.to(args.local_rank)
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
-
-        train_sampler = DistributedSampler(train_dataset)
-        train_loader = DataLoader(train_dataset, batch_size=8, sampler=train_sampler)
-    
     if args.DP:
         model = DataParallel(model)
     # tokenized_datasets = dataset.map(tokenize_function, batched=True, num_proc=30, remove_columns=["text"])
@@ -55,7 +51,7 @@ def set_trainer(args, dataset, model, tokenizer, word, ratio, val):
 
     # Initialize Trainer for MLM
     trainer = Trainer(
-        model=model,                
+        model=model.module if args.DDP or args.DP else model,                
         args=training_args,
         data_collator=data_collator,
         train_dataset=tokenized_datasets,
