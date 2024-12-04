@@ -143,6 +143,7 @@ if __name__ == "__main__":
 
     # words = ['and', 'one', 'the', 'for', 'new', 'time', 'they', 'was', 'has', 'that', 'who', 'when']
     words = ['one', 'for', 'new', 'time', 'they', 'was', 'has', 'that', 'who']
+    words = ['they', 'was', 'has', 'that', 'who']
     
     # words = ['and', 'the', 'time', 'was', 'who']
 
@@ -173,7 +174,7 @@ if __name__ == "__main__":
         checkpoint_CTModel = "/home/hyohyeongjang/2024SWELL/weights/CT/CT_{}_{}_{}", # used in continualTrain
         checkpoint_FTModel = "/home/hyohyeongjang/2024SWELL/weights/FT/FT_{}_{}_{}_{}", # used in continualTrain
         max_seq_len = 512,
-        batch_size = 32, # 64에 약 25000MiB(100%)
+        batch_size = 64, # 64에 약 25000MiB(100%)
         do_RandomInitialize = False,
         num_cores_train = 10
 
