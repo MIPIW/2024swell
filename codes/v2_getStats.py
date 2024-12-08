@@ -16,8 +16,8 @@ import torch, random
 import logging
 from torch.utils.data import DataLoader, DistributedSampler
 
-sys.path.append(os.path.expanduser('~/'))
-from myUtils.parallelUtils import ParallelUtils
+# sys.path.append(os.path.expanduser('~/'))
+# from myUtils.parallelUtils import ParallelUtils
 from knockknock import slack_sender
 
 def setup_distributed():
@@ -339,7 +339,7 @@ def _process_chunk4(pos, df):
 
     return {pos: [quant_pos[i] for i in np.arange(0.1, 1.1, 0.1)]}
 
-def tokenize_and_align_labels(examples, args, config, tokenizer):
+def tokenize_and_align_labels(examples, args, config, tokenizer, unPos_idx):
     
     tokenized_inputs = tokenizer(examples["text"], truncation=True, padding="max_length", max_length=512, is_split_into_words = True)
     
@@ -356,12 +356,14 @@ def tokenize_and_align_labels(examples, args, config, tokenizer):
             else:
                 label_ids.append(-100)
             previous_word_idx = word_idx
-        
+
+        if unPos_idx is not None:
+            label_ids = [-100 if j == unPos_idx else j for j in label_ids]
+
         labels.append(label_ids)
     
     tokenized_inputs["label"] = labels
-    tokenized_inputs = {key: torch.tensor(value) for key, value in tokenized_inputs.items()}
-
+    
     return tokenized_inputs
 
 def compute_label_accuracies(preds, labels, num_labels):
@@ -394,6 +396,13 @@ def compute_label_accuracies(preds, labels, num_labels):
             label_accuracies[label] = None  # No instances of this label in the batch
     
     return label_accuracies
+
+def reduce_dict(args, counts_dict, num_labels):
+    for label in range(num_labels):
+        tensor = torch.tensor(counts_dict[label], dtype=torch.float32).to(args.local_rank)
+        dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
+        counts_dict[label] = tensor.item()
+
 
 webhook_url = "https://hooks.slack.com/services/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"
 @slack_sender(webhook_url=webhook_url, channel="mine")
@@ -561,7 +570,7 @@ def main(args, config):
     # considering number of sentences in each bins, with LL, LH, HL, HH settings
     # comparative adjective, wh determiner, gerund or present participle, prersonal pronoun
     # respectively LL, LH, HL, HH
-    FINAL_TARGET_POS = ['JJR', 'WP'] # decided by these steps
+    FINAL_TARGET_POS = ['JJR', 'WP',] # decided by these steps
     FINAL_RANGE = [(0,2), (3,4), (5,25)]
 
                
@@ -792,9 +801,9 @@ def main(args, config):
             
     #         data.columns = ['text', 'label']
     #         eval_data.columns = ['text', 'label']
-    #         print(len(data))
     #         train_data = data.sample(n = 80000, random_state=42)
     #         eval_data = eval_data.sample(n = 5000, random_state=42)
+            
 
     #         train_dataset_dic[f"{pos}_{lowHigh}"] = Dataset.from_pandas(train_data.reset_index(drop = True))
     #         eval_dataset_df = pd.concat([eval_dataset_df, eval_data], axis = 0)
@@ -817,19 +826,24 @@ def main(args, config):
     model = AutoModelForTokenClassification.from_pretrained(model_name, num_labels=num_labels)
     model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(0, "base"))
 
-    if args.ddp:
-        model = DDP(model, device_ids=[local_rank])
-
     with open(config['contFiles']['train_dataset_CT'], "rb") as f:
         train_dataset_dic = pickle.load(f)
 
     with open(config['contFiles']['eval_dataset_CT'], "rb") as f:
         eval_dataset = pickle.load(f)
 
-    f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config)
+    train_dataset = {}
+    for key, value in train_dataset_dic.items():
+        pos = key.split("_")[0]
+        unPos = FINAL_TARGET_POS[1] if pos == FINAL_TARGET_POS[0] else FINAL_TARGET_POS[0]
+        unPos_idx = config['dataStats']['labelToId'][unPos]
 
-    train_dataset = {key: val.map(f, batched=True, num_proc = config['contTrain']['num_cores_train']) for key, val in train_dataset_dic.items()}
+        f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = unPos_idx)
+        train_dataset[key] = value.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
+
     train_dataset = {key: val.remove_columns("text") for key, val in train_dataset.items()}
+
+    f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = None)
     eval_dataset = eval_dataset.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
     eval_dataset = eval_dataset.remove_columns('text')
         
@@ -843,33 +857,29 @@ def main(args, config):
 
     # Move model to GPU if available
     model.to(args.local_rank)
+    
+    if args.ddp:
+        model = DDP(model, device_ids=[args.local_rank])
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
     num_training_steps = sum([len(i) for i in train_dataloader]) * 10  # Assuming 3 epochs
     lr_scheduler = get_scheduler(
         name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
     )
-    
-
 
     #logger setting
-    if args.ddp and args.local_rank == 0:
-        logging.basicConfig(filename="trainingSteps.log", 
-                        format='%(asctime)s %(levelname)s:%(message)s',
-                        datefmt='%Y%m%d %H%M%S',
-                        level=logging.INFO)
-    if not args.ddp:
-        logging.basicConfig(filename="trainingSteps.log", 
-                        format='%(asctime)s %(levelname)s:%(message)s',
-                        datefmt='%Y%m%d %H%M%S',
-                        level=logging.INFO)
-    
+    logging.basicConfig(filename="trainingSteps.log", 
+                    format='%(asctime)s %(levelname)s:%(message)s',
+                    datefmt='%Y%m%d %H%M%S',
+                    level=logging.INFO)
+
     num_epochs = 10
 
 
     # baseline evaluation
-    eval_correct_count = defaultdict(int)
-    eval_total_count = defaultdict(int)
+    eval_correct_count = defaultdict(int, {label: 0 for label in range(num_labels)})
+    eval_total_count = defaultdict(int, {label: 0 for label in range(num_labels)})
+
     model.eval()
 
     with torch.no_grad():
@@ -890,16 +900,24 @@ def main(args, config):
                 if acc is not None:
                     eval_correct_count[label] += acc * len(np.where(labels == label)[0])
                     eval_total_count[label] += len(np.where(labels == label)[0])
+        
+        if args.ddp:
+            reduce_dict(args, eval_correct_count, num_labels)
+            reduce_dict(args, eval_total_count, num_labels)
 
-        out = ""
-        for label in range(num_labels):
-            if eval_total_count[label] > 0:
-                acc = eval_correct_count[label] / eval_total_count[label]
-                out += f"{round(acc, 4)}    "
-            else:
-                out += "X   "
-        logging.info("---eval accuracy--------------------------------------")        
-        logging.info(out)
+        dist.barrier()
+        if (args.ddp and dist.get_rank() == 0) or not args.ddp:
+            out = ""
+            for label in range(num_labels):
+                if eval_total_count[label] > 0:
+                    acc = eval_correct_count[label] / eval_total_count[label]
+                    out += f"{round(acc, 4)}    "
+                else:
+                    out += "X   "
+            logging.info("---eval accuracy at 0 of base--------------------------------------")        
+            logging.info(out)
+        
+        dist.barrier()
     
 
     for epoch in range(num_epochs):
@@ -907,13 +925,14 @@ def main(args, config):
         for e, subEpoch in enumerate(['JJR_low', 'WP_low', 'JJR_high', 'WP_high']):
 
             model.train()
-            train_dataloader[subEpoch].sampler.set_epoch(epoch)
+            if args.ddp:
+                train_dataloader[subEpoch].sampler.set_epoch(epoch)
             progress_bar = tqdm(train_dataloader[subEpoch], desc=f"E: {epoch}, SE: {e}")
             total_loss = 0
             total_acc = 0
             step = 0
-            label_correct_counts = defaultdict(int)
-            label_total_counts = defaultdict(int)
+            label_correct_counts = defaultdict(int, {label: 0 for label in range(num_labels)})
+            label_total_counts = defaultdict(int, {label: 0 for label in range(num_labels)})
 
             for batch in progress_bar:
                 
@@ -923,7 +942,6 @@ def main(args, config):
                 outputs = model(**batch)
                 loss = outputs.loss
                 logits = outputs.logits
-
                 # Backward pass and optimization
                 optimizer.zero_grad()
                 loss.backward()
@@ -950,23 +968,33 @@ def main(args, config):
 
             # Calculate average loss and accuracy per label
             avg_loss = total_loss / step
-            logging.info(f"Epoch {epoch}, subEpoch {subEpoch}: Average Loss: {avg_loss:.4f}")
+            
+            if args.ddp:
+                reduce_dict(args, label_correct_counts, num_labels)
+                reduce_dict(args, label_total_counts, num_labels)
+                
+            dist.barrier()
 
-            out = ""
-            for label in range(num_labels):
-                if label_total_counts[label] > 0:
-                    acc = label_correct_counts[label] / label_total_counts[label]
-                    out += f"{round(acc, 4)}    "
-                else:
-                    out += "X   "
-            logging.info("---training accuracy--------------------------------------")       
-            logging.info(out)
+            if (args.ddp and dist.get_rank() == 0) or not args.ddp:
+                out = ""
+                for label in range(num_labels):
+                    if label_total_counts[label] > 0:
+                        acc = label_correct_counts[label] / label_total_counts[label]
+                        out += f"{round(acc, 4)}    "
+                    else:
+                        out += "X   "
+                logging.info(f"---training accuracy at {epoch} of {subEpoch}--------------------------------------")       
+                logging.info(out)
+
+            dist.barrier()
+
 
             # Validation loop
-            eval_correct_count = defaultdict(int)
-            eval_total_count = defaultdict(int)
-            
-            model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch))
+            eval_correct_count = defaultdict(int, {label: 0 for label in range(num_labels)})
+            eval_total_count = defaultdict(int, {label: 0 for label in range(num_labels)})
+
+            if not args.ddp or dist.get_rank() == 0:
+                model.module.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch))
 
             model.eval()
 
@@ -988,20 +1016,24 @@ def main(args, config):
                             eval_correct_count[label] += acc * len(np.where(labels == label)[0])
                             eval_total_count[label] += len(np.where(labels == label)[0])
 
-                out = ""
-                for label in range(num_labels):
-                    if eval_total_count[label] > 0:
-                        acc = eval_correct_count[label] / eval_total_count[label]
-                        out += f"{round(acc, 4)}    "
-                    else:
-                        out += "X   "
-
-                logging.info("---eval accuracy--------------------------------------")        
-                logging.DEBUG(out)
-        
                             
+                if args.ddp:
+                    reduce_dict(args, eval_correct_count, num_labels)
+                    reduce_dict(args, eval_total_count, num_labels)
+                            
+                dist.barrier()
+                if (args.ddp and dist.get_rank() == 0) or not args.ddp:
+                    out = ""
+                    for label in range(num_labels):
+                        if eval_total_count[label] > 0:
+                            acc = eval_correct_count[label] / eval_total_count[label]
+                            out += f"{round(acc, 4)}    "
+                        else:
+                            out += "X   "
+                    logging.info(f"---eval accuracy at {epoch} of {subEpoch}--------------------------------------")        
+                    logging.info(out)
 
-
+                dist.barrier()
 
 
     

@@ -1,4 +1,4 @@
-import yaml, pickle
+import yaml, pickle, re
 from argparse import Namespace
 import pandas as pd
 
@@ -15,14 +15,14 @@ def main(args, config):
     for line in x:
         if "eval" in line:
             state = "eval"
-            continue
-        elif "subEpoch" in line:
-            t = line.split(":")[1].split(" ")
-            dataset = t[t.index("subEpoch") + 1]
-            epoch = t[t.index("Epoch")+1][0]
-            state = "train"
+            t = re.sub("-", "", line.strip()).split(" ")
+            epoch = t[t.index("at")+1]
+            dataset = t[t.index("of")+1]
             continue
         elif "train" in line:
+            t = re.sub("-", "", line.strip()).split(" ")
+            epoch = t[t.index("at")+1]
+            dataset = t[t.index("of")+1]
             state = "train"
             continue
         else:
@@ -32,18 +32,19 @@ def main(args, config):
             res = [i for i in line.strip().split(":")[1].split(" ") if i != ""]
             res = pd.DataFrame(res).T
             res.columns = config['dataStats']['correctXPos']
-            res.index = pd.Index([f"{dataset}_{epoch}"])
+            res.index = pd.Index([f"{epoch}_{dataset}"])
             trainRes = pd.concat([trainRes, res], axis = 0)
         elif state == "eval":
             res = [i for i in line.strip().split(":")[1].split(" ") if i != ""]
             res = pd.DataFrame(res).T
             res.columns = config['dataStats']['correctXPos']
-            res.index = pd.Index([f"{dataset}_{epoch}"])
+            res.index = pd.Index([f"{epoch}_{dataset}"])
             evalRes = pd.concat([evalRes, res], axis = 0)
-    
-    print("train", "\n\n", trainRes[['JJR', "PRP", "VBP", "WDT"]])
-    print("-----------")
-    print("eval", "\n\n", evalRes[['JJR', "PRP", "VBP", "WDT"]])
+    print("-------------------------------")
+    print("train", "\n", trainRes[['JJR', "PRP", "VBP", "WDT", "WP"]])
+    print("-------------------------------")
+    print("eval", "\n", evalRes[['JJR', "PRP", "VBP", "WDT", "WP"]])
+    print("-------------------------------")
 
 
 
