@@ -358,7 +358,7 @@ def tokenize_and_align_labels(examples, args, config, tokenizer, unPos_idx):
             previous_word_idx = word_idx
 
         if unPos_idx is not None:
-            label_ids = [-100 if j == unPos_idx else j for j in label_ids]
+            label_ids = [-100 if j in unPos_idx else j for j in label_ids]
 
         labels.append(label_ids)
     
@@ -631,190 +631,194 @@ def main(args, config):
         
 
 
-   ############## filter those which have even tokens
-    # FULL_POS = config['dataStats']['correctXPosNoSym']
+   ############# filter those which have even tokens
+    FULL_POS = config['dataStats']['correctXPosNoSym']
     
-    # pos_normal = pd.DataFrame(columns=FULL_POS)
-    # pos_unique = pd.DataFrame(columns=FULL_POS)
+    pos_normal = pd.DataFrame(columns=FULL_POS)
+    pos_unique = pd.DataFrame(columns=FULL_POS)
 
-    # for i in tqdm(range(10)):
-    #     df_normal_count = pd.read_csv(config['dataStats']['pos_freq_CT']+f"_{i}_normal.csv")
-    #     df_unique_count = pd.read_csv(config['dataStats']['pos_freq_CT']+f"_{i}_unique.csv")
+    for i in tqdm(range(10)):
+        df_normal_count = pd.read_csv(config['dataStats']['pos_freq_CT']+f"_{i}_normal.csv")
+        df_unique_count = pd.read_csv(config['dataStats']['pos_freq_CT']+f"_{i}_unique.csv")
 
-    #     pos_normal = pd.concat([pos_normal, df_normal_count], axis = 0).reset_index(drop = True)
-    #     pos_unique = pd.concat([pos_unique, df_unique_count], axis = 0).reset_index(drop = True)
+        pos_normal = pd.concat([pos_normal, df_normal_count], axis = 0).reset_index(drop = True)
+        pos_unique = pd.concat([pos_unique, df_unique_count], axis = 0).reset_index(drop = True)
 
-    # for pos in FINAL_TARGET_POS:
-    #     if pos == FINAL_TARGET_POS[0]:
-    #         unPos = FINAL_TARGET_POS[1]
-    #     else:
-    #         unPos = FINAL_TARGET_POS[0]
+    for pos in FINAL_TARGET_POS:
+        # if pos == FINAL_TARGET_POS[0]:
+        #     unPos = FINAL_TARGET_POS[1]
+        # else:
+        #     unPos = FINAL_TARGET_POS[0]
         
-    #     # target_low_off = pos_normal[pos].map(lambda x: ranges[0][0] <= x <= ranges[0][1] )
-    #     target_low_idx = pos_normal[pos].map(lambda x: FINAL_RANGE[1][0] <= x <= FINAL_RANGE[1][1] )
-    #     target_high_idx = pos_normal[pos].map(lambda x: FINAL_RANGE[2][0] <= x <= FINAL_RANGE[2][1] )
-    #     # target_high_off = pos_normal[pos].map(lambda x: ranges[3][0] <= x <= ranges[3][1] )
+        # target_low_off = pos_normal[pos].map(lambda x: ranges[0][0] <= x <= ranges[0][1] )
+        target_low_idx = pos_normal[pos].map(lambda x: FINAL_RANGE[1][0] <= x <= FINAL_RANGE[1][1] )
+        target_high_idx = pos_normal[pos].map(lambda x: FINAL_RANGE[2][0] <= x <= FINAL_RANGE[2][1] )
+        # target_high_off = pos_normal[pos].map(lambda x: ranges[3][0] <= x <= ranges[3][1] )
 
-    #     n_tgt_low = pos_normal[target_low_idx]
-    #     n_tgt_high = pos_normal[target_high_idx]
-    #     u_tgt_low = pos_unique[target_low_idx]
-    #     u_tgt_high = pos_unique[target_high_idx]
+        n_tgt_low = pos_normal[target_low_idx]
+        n_tgt_high = pos_normal[target_high_idx]
+        u_tgt_low = pos_unique[target_low_idx]
+        u_tgt_high = pos_unique[target_high_idx]
 
-    #     # filter by quantile
-    #     n_tgt_low_noPos = n_tgt_low.drop(columns = pos, inplace = False)
-    #     n_tgt_high_noPos = n_tgt_high.drop(columns = pos, inplace = False)
-    #     u_tgt_low_noPos = u_tgt_low.drop(columns = pos, inplace = False)
-    #     u_tgt_high_noPos = u_tgt_high.drop(columns = pos, inplace = False)
+        # filter by quantile
+        n_tgt_low_noPos = n_tgt_low.drop(columns = pos, inplace = False)
+        n_tgt_high_noPos = n_tgt_high.drop(columns = pos, inplace = False)
+        u_tgt_low_noPos = u_tgt_low.drop(columns = pos, inplace = False)
+        u_tgt_high_noPos = u_tgt_high.drop(columns = pos, inplace = False)
 
-    #     n_stdLow = n_tgt_low_noPos.std(axis = 1)
-    #     n_stdHigh = n_tgt_high_noPos.std(axis = 1)
-    #     u_stdLow = u_tgt_low_noPos.std(axis = 1)
-    #     u_stdHigh = u_tgt_high_noPos.std(axis = 1)
+        n_stdLow = n_tgt_low_noPos.std(axis = 1)
+        n_stdHigh = n_tgt_high_noPos.std(axis = 1)
+        u_stdLow = u_tgt_low_noPos.std(axis = 1)
+        u_stdHigh = u_tgt_high_noPos.std(axis = 1)
 
-    #     n_stdLow_base = n_stdLow.quantile(0.1)
-    #     n_stdLow_top = n_stdLow.quantile(0.9)
-    #     n_stdHigh_base = n_stdHigh.quantile(0.1)
-    #     n_stdHigh_top = n_stdHigh.quantile(0.9)
-    #     u_stdLow_base = u_stdLow.quantile(0.1)
-    #     u_stdLow_top = u_stdLow.quantile(0.9)
-    #     u_stdHigh_base = u_stdHigh.quantile(0.1)
-    #     u_stdHigh_top = u_stdHigh.quantile(0.9)
+        n_stdLow_base = n_stdLow.quantile(0.1)
+        n_stdLow_top = n_stdLow.quantile(0.9)
+        n_stdHigh_base = n_stdHigh.quantile(0.1)
+        n_stdHigh_top = n_stdHigh.quantile(0.9)
+        u_stdLow_base = u_stdLow.quantile(0.1)
+        u_stdLow_top = u_stdLow.quantile(0.9)
+        u_stdHigh_base = u_stdHigh.quantile(0.1)
+        u_stdHigh_top = u_stdHigh.quantile(0.9)
 
-    #     n_stdLow_tgt = n_stdLow.map(lambda x: n_stdLow_base < x < n_stdLow_top)
-    #     n_stdHigh_tgt = n_stdHigh.map(lambda x: n_stdHigh_base < x < n_stdHigh_top)
-    #     u_stdLow_tgt = u_stdLow.map(lambda x: u_stdLow_base < x < u_stdLow_top)
-    #     u_stdHigh_tgt = u_stdHigh.map(lambda x: u_stdHigh_base < x < u_stdHigh_top)
+        n_stdLow_tgt = n_stdLow.map(lambda x: n_stdLow_base < x < n_stdLow_top)
+        n_stdHigh_tgt = n_stdHigh.map(lambda x: n_stdHigh_base < x < n_stdHigh_top)
+        u_stdLow_tgt = u_stdLow.map(lambda x: u_stdLow_base < x < u_stdLow_top)
+        u_stdHigh_tgt = u_stdHigh.map(lambda x: u_stdHigh_base < x < u_stdHigh_top)
 
-    #     n_stdLow_tgt = n_stdLow_tgt.reindex(range(len(target_low_idx)), fill_value=False)
-    #     n_stdHigh_tgt = n_stdHigh_tgt.reindex(range(len(target_low_idx)), fill_value=False)
-    #     u_stdLow_tgt = u_stdLow_tgt.reindex(range(len(target_low_idx)), fill_value=False)
-    #     u_stdHigh_tgt = u_stdHigh_tgt.reindex(range(len(target_low_idx)), fill_value=False)
+        n_stdLow_tgt = n_stdLow_tgt.reindex(range(len(target_low_idx)), fill_value=False)
+        n_stdHigh_tgt = n_stdHigh_tgt.reindex(range(len(target_low_idx)), fill_value=False)
+        u_stdLow_tgt = u_stdLow_tgt.reindex(range(len(target_low_idx)), fill_value=False)
+        u_stdHigh_tgt = u_stdHigh_tgt.reindex(range(len(target_low_idx)), fill_value=False)
 
-    #     # filter by unPos
-    #     unMin_low = n_tgt_low[unPos] <= 1
-    #     unMin_high = n_tgt_high[unPos] <= 1
-    #     unMin_low_eval = n_tgt_low[unPos] > 1
-    #     unMin_high_eval = n_tgt_high[unPos] > 1
+        # filter by unPos
+        # unMin_low = n_tgt_low[unPos] <= 1
+        # unMin_high = n_tgt_high[unPos] <= 1
+        # unMin_low_eval = n_tgt_low[unPos] > 1
+        # unMin_high_eval = n_tgt_high[unPos] > 1
 
-
-    #     unMin_low = unMin_low.reindex(range(len(target_low_idx)), fill_value=False)
-    #     unMin_high = unMin_high.reindex(range(len(target_low_idx)), fill_value=False)
-    #     unMin_low_eval = unMin_low_eval.reindex(range(len(target_low_idx)), fill_value=False)
-    #     unMin_high_eval = unMin_high_eval.reindex(range(len(target_low_idx)), fill_value=False)
+        # unMin_low = unMin_low.reindex(range(len(target_low_idx)), fill_value=False)
+        # unMin_high = unMin_high.reindex(range(len(target_low_idx)), fill_value=False)
+        # unMin_low_eval = unMin_low_eval.reindex(range(len(target_low_idx)), fill_value=False)
+        # unMin_high_eval = unMin_high_eval.reindex(range(len(target_low_idx)), fill_value=False)
         
-    #     print(unMin_low, unMin_high, unMin_low_eval, unMin_high_eval)
+        # print(unMin_low, unMin_high, unMin_low_eval, unMin_high_eval)
 
-    #     eval_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt & unMin_low_eval]
-    #     eval_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt & unMin_high_eval]
-    #     target_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt & unMin_low]
-    #     target_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt & unMin_high]
+        # eval_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt & unMin_low_eval]
+        # eval_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt & unMin_high_eval]
+        # target_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt & unMin_low]
+        # target_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt & unMin_high]
 
-    #     print(len(target_low_idx), len(target_high_idx), len(eval_low_idx), len(eval_high_idx))
+        eval_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt]
+        eval_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt]
+        target_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt]
+        target_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt]
 
-    #     with open(config['contFiles']['data_CT'].format(pos, "low"), "wb") as f:
-    #         pickle.dump([target_low_idx, eval_low_idx], f)
+        print(len(target_low_idx), len(target_high_idx), len(eval_low_idx), len(eval_high_idx))
+
+        with open(config['contFiles']['data_CT'].format(pos, "low"), "wb") as f:
+            pickle.dump([target_low_idx, eval_low_idx], f)
         
-    #     with open(config['contFiles']['data_CT'].format(pos, "high"), "wb") as f:
-    #         pickle.dump([target_high_idx, eval_high_idx], f)
+        with open(config['contFiles']['data_CT'].format(pos, "high"), "wb") as f:
+            pickle.dump([target_high_idx, eval_high_idx], f)
 
 
 
-    # # ############### extract data by idx
-    # tot_former = 0
+    # ############### extract data by idx
+    tot_former = 0
     
-    # for i in tqdm(range(10)):
+    for i in tqdm(range(10)):
 
-    #     with open(config['originalData']['raw_CT']+f"_{i}_process_d2.pk", "rb") as f:
-    #         sent_lower = pickle.load(f)
-    #         sent_lower = pd.Series(sent_lower)
+        with open(config['originalData']['raw_CT']+f"_{i}_process_d2.pk", "rb") as f:
+            sent_lower = pickle.load(f)
+            sent_lower = pd.Series(sent_lower)
 
-    #     with open(config['originalData']['raw_CT']+f"_{i}_process_d3.pk", "rb") as f:
-    #         sent_pos = pickle.load(f)
-    #         sent_pos = pd.Series([i[1] for i in sent] for sent in sent_pos)
+        with open(config['originalData']['raw_CT']+f"_{i}_process_d3.pk", "rb") as f:
+            sent_pos = pickle.load(f)
+            sent_pos = pd.Series([i[1] for i in sent] for sent in sent_pos)
             
-    #     sent_lower.index = pd.RangeIndex(start=tot_former, stop=tot_former+len(sent_lower))
-    #     sent_pos.index = pd.RangeIndex(start=tot_former, stop=tot_former+len(sent_pos))
+        sent_lower.index = pd.RangeIndex(start=tot_former, stop=tot_former+len(sent_lower))
+        sent_pos.index = pd.RangeIndex(start=tot_former, stop=tot_former+len(sent_pos))
 
-    #     print(sent_lower.head(), sent_pos.head(), len(sent_lower), len(sent_pos))
+        print(sent_lower.head(), sent_pos.head(), len(sent_lower), len(sent_pos))
     
-    #     for pos in tqdm(FINAL_TARGET_POS):
+        for pos in tqdm(FINAL_TARGET_POS):
             
-    #         with open(config['contFiles']['data_CT'].format(pos, "low"), "rb") as f:
-    #             idx_low, eval_idx_low = pickle.load(f)
+            with open(config['contFiles']['data_CT'].format(pos, "low"), "rb") as f:
+                idx_low, eval_idx_low = pickle.load(f)
             
-    #         with open(config['contFiles']['data_CT'].format(pos, "high"), "rb") as f:
-    #             idx_high, eval_idx_high = pickle.load(f) 
+            with open(config['contFiles']['data_CT'].format(pos, "high"), "rb") as f:
+                idx_high, eval_idx_high = pickle.load(f) 
 
-    #         print(idx_low.head(), idx_high.head())
+            print(idx_low.head(), idx_high.head())
              
-    #         idx_low = idx_low.loc[(idx_low.index > tot_former) & (idx_low.index < (tot_former + len(sent_lower)))].index
-    #         idx_high = idx_high.iloc[(idx_high.index > tot_former) & (idx_high.index < (tot_former + len(sent_lower)))].index
-    #         eval_idx_low = eval_idx_low.loc[(eval_idx_low.index > tot_former) & (eval_idx_low.index < (tot_former + len(sent_lower)))].index
-    #         eval_idx_high = eval_idx_high.loc[(eval_idx_high.index > tot_former) & (eval_idx_high.index < (tot_former + len(sent_lower)))].index
+            idx_low = idx_low.loc[(idx_low.index > tot_former) & (idx_low.index < (tot_former + len(sent_lower)))].index
+            idx_high = idx_high.iloc[(idx_high.index > tot_former) & (idx_high.index < (tot_former + len(sent_lower)))].index
+            eval_idx_low = eval_idx_low.loc[(eval_idx_low.index > tot_former) & (eval_idx_low.index < (tot_former + len(sent_lower)))].index
+            eval_idx_high = eval_idx_high.loc[(eval_idx_high.index > tot_former) & (eval_idx_high.index < (tot_former + len(sent_lower)))].index
 
-    #         sent_low = sent_lower[idx_low]
-    #         sent_high = sent_lower[idx_high]
-    #         label_low = sent_pos[idx_low]
-    #         label_high = sent_pos[idx_high]
+            sent_low = sent_lower[idx_low]
+            sent_high = sent_lower[idx_high]
+            label_low = sent_pos[idx_low]
+            label_high = sent_pos[idx_high]
 
-    #         eval_sent_low = sent_lower[eval_idx_low]
-    #         eval_sent_high = sent_lower[eval_idx_high]
-    #         eval_label_low = sent_pos[eval_idx_low]
-    #         eval_label_high = sent_pos[eval_idx_high]
+            eval_sent_low = sent_lower[eval_idx_low]
+            eval_sent_high = sent_lower[eval_idx_high]
+            eval_label_low = sent_pos[eval_idx_low]
+            eval_label_high = sent_pos[eval_idx_high]
 
-    #         with open(config['contFiles']['data_CT_str'].format(i, pos, "low"), "wb") as f:
-    #             pickle.dump([sent_low, label_low, eval_sent_low, eval_label_low], f)
+            with open(config['contFiles']['data_CT_str'].format(i, pos, "low"), "wb") as f:
+                pickle.dump([sent_low, label_low, eval_sent_low, eval_label_low], f)
             
-    #         with open(config['contFiles']['data_CT_str'].format(i, pos, "high"), "wb") as f:
-    #             pickle.dump([sent_high, label_high, eval_sent_high, eval_label_high], f)   
+            with open(config['contFiles']['data_CT_str'].format(i, pos, "high"), "wb") as f:
+                pickle.dump([sent_high, label_high, eval_sent_high, eval_label_high], f)   
 
-    #     tot_former += len(sent_lower)
+        tot_former += len(sent_lower)
 
 
 
-    # train_dataset_dic = {}
-    # eval_dataset_df = pd.DataFrame(columns = ['text', 'label'])
+    train_dataset_dic = {}
+    eval_dataset_df = pd.DataFrame(columns = ['text', 'label'])
 
-    # for lowHigh in ['low', 'high']:
-    #     for pos in tqdm(FINAL_TARGET_POS):    
+    for lowHigh in ['low', 'high']:
+        for pos in tqdm(FINAL_TARGET_POS):    
             
-    #         serData = pd.Series()
-    #         serLabel = pd.Series()
-    #         serEvaldata = pd.Series()
-    #         serEvalLabel = pd.Series()
-    #         for i in range(10):
-    #             with open(config['contFiles']['data_CT_str'].format(i, pos, lowHigh), "rb") as f:
-    #                 data, label, eval_data, eval_label = pickle.load(f)
+            serData = pd.Series()
+            serLabel = pd.Series()
+            serEvaldata = pd.Series()
+            serEvalLabel = pd.Series()
+            for i in range(10):
+                with open(config['contFiles']['data_CT_str'].format(i, pos, lowHigh), "rb") as f:
+                    data, label, eval_data, eval_label = pickle.load(f)
                     
-    #             serData = pd.concat([serData, data], ignore_index = True)
-    #             serLabel = pd.concat([serLabel, label], ignore_index = True)
-    #             serEvaldata = pd.concat([serEvaldata, eval_data], ignore_index = True)
-    #             serEvalLabel = pd.concat([serEvalLabel, eval_label], ignore_index = True)
+                serData = pd.concat([serData, data], ignore_index = True)
+                serLabel = pd.concat([serLabel, label], ignore_index = True)
+                serEvaldata = pd.concat([serEvaldata, eval_data], ignore_index = True)
+                serEvalLabel = pd.concat([serEvalLabel, eval_label], ignore_index = True)
         
-    #         serData = serData.reset_index(drop = True)
-    #         serLabel = serLabel.reset_index(drop = True)
-    #         serEvaldata = serEvaldata.reset_index(drop = True)
-    #         serEvalLabel = serEvalLabel.reset_index(drop = True)
+            serData = serData.reset_index(drop = True)
+            serLabel = serLabel.reset_index(drop = True)
+            serEvaldata = serEvaldata.reset_index(drop = True)
+            serEvalLabel = serEvalLabel.reset_index(drop = True)
 
-    #         data = pd.concat([serData, serLabel], axis = 1)
-    #         eval_data = pd.concat([serEvaldata, serEvalLabel], axis = 1)
+            data = pd.concat([serData, serLabel], axis = 1)
+            eval_data = pd.concat([serEvaldata, serEvalLabel], axis = 1)
             
-    #         data.columns = ['text', 'label']
-    #         eval_data.columns = ['text', 'label']
-    #         train_data = data.sample(n = 80000, random_state=42)
-    #         eval_data = eval_data.sample(n = 5000, random_state=42)
+            data.columns = ['text', 'label']
+            eval_data.columns = ['text', 'label']
+            train_data = data.sample(n = 80000, random_state=42)
+            eval_data = eval_data.sample(n = 5000, random_state=42)
             
 
-    #         train_dataset_dic[f"{pos}_{lowHigh}"] = Dataset.from_pandas(train_data.reset_index(drop = True))
-    #         eval_dataset_df = pd.concat([eval_dataset_df, eval_data], axis = 0)
+            train_dataset_dic[f"{pos}_{lowHigh}"] = Dataset.from_pandas(train_data.reset_index(drop = True))
+            eval_dataset_df = pd.concat([eval_dataset_df, eval_data], axis = 0)
     
-    # eval_dataset = Dataset.from_pandas(eval_dataset_df.reset_index(drop = True))
+    eval_dataset = Dataset.from_pandas(eval_dataset_df.reset_index(drop = True))
     
-    # with open(config['contFiles']['train_dataset_CT'], "wb") as f:
-    #     pickle.dump(train_dataset_dic, f)
+    with open(config['contFiles']['train_dataset_CT'], "wb") as f:
+        pickle.dump(train_dataset_dic, f)
 
-    # with open(config['contFiles']['eval_dataset_CT'], "wb") as f:
-    #     pickle.dump(eval_dataset, f)
+    with open(config['contFiles']['eval_dataset_CT'], "wb") as f:
+        pickle.dump(eval_dataset, f)
     
 
 
@@ -835,8 +839,8 @@ def main(args, config):
     train_dataset = {}
     for key, value in train_dataset_dic.items():
         pos = key.split("_")[0]
-        unPos = FINAL_TARGET_POS[1] if pos == FINAL_TARGET_POS[0] else FINAL_TARGET_POS[0]
-        unPos_idx = config['dataStats']['labelToId'][unPos]
+        unPos_idx = [item for item in FINAL_TARGET_POS if item != pos]
+        unPos_idx = [config['dataStats']['labelToId'][i] for i in unPos_idx]
 
         f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = unPos_idx)
         train_dataset[key] = value.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
