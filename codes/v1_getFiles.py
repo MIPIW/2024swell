@@ -18,6 +18,7 @@ import nltk
 from nltk.corpus import wordnet
 
 sys.path.append(os.path.expanduser('~/'))
+from myUtils.parallelUtils import ParallelUtils
 from myUtils.timeUtils import TimeUtils
 from myUtils.IOUtils import IOUtils
 from myUtils.parallelUtils import ParallelUtils

@@ -1,17 +1,19 @@
 originalData:
-  dataset_CT: ["wikitext", "wikitext-103-v1"] # used in anywhere
-  dataset_CTv2: ["allenai/c4", "realnewslike"]
+  dataset_CT: ["allenai/c4", "realnewslike"]
   dataset_FT: ["universal_dependencies", "en_ewt"] # used in anywhere
-  raw_CT: "/home/hyohyeongjang/2024SWELL/data_raw/ct_raw.pk" # used in anywhere
-  raw_FT: "/home/hyohyeongjang/2024SWELL/data_raw/ft_raw.pk" # used in anywhere
+  raw_CT: "/home/hyohyeongjang/2024SWELL/data_raw/ct_raw_v3" # used in anywhere
+  raw_FT: "/home/hyohyeongjang/2024SWELL/data_raw/ft_raw_v3.pk" # used in anywhere
+  raw_filter_original_CT: "/home/hyohyeongjang/2024SWELL/data_raw/ct_filter_original_v3.pk" # used in anywhere
+  raw_filter_split_CT: "/home/hyohyeongjang/2024SWELL/data_raw/ct_filter_splitted_v3.pk" # used in anywhere
+  raw_filter_FT: "/home/hyohyeongjang/2024SWELL/data_raw/ft_filter_v3.pk" # used in anywhere
 
 dataStats: 
-  bag_of_word_CT: "/home/hyohyeongjang/2024SWELL/meta/BOW_CT.pk" # used in getWords
-  bag_of_word_FT: "/home/hyohyeongjang/2024SWELL/meta/BOW_FT.pk" # used in getWords
-  cnt_pos_CT: "/home/hyohyeongjang/2024SWELL/meta/cnt_pos_CT.pk" # used in getWords
-  cnt_pos_FT: "/home/hyohyeongjang/2024SWELL/meta/cnt_pos_FT.pk" # used in getWords
-  file_wordStats_CT: "/home/hyohyeongjang/2024SWELL/meta/word_ct.pk" # used in getWords
-  file_wordStats_FT: "/home/hyohyeongjang/2024SWELL/meta/word_ft.pk" # used in getWords
+  bag_of_word_CT: "/home/hyohyeongjang/2024SWELL/meta/BOW_CT_v3.pk" # used in getWords
+  bag_of_word_FT: "/home/hyohyeongjang/2024SWELL/meta/BOW_FT_v3.pk" # used in getWords
+  cnt_pos_CT: "/home/hyohyeongjang/2024SWELL/meta/cnt_pos_CT_v3.pk" # used in getWords
+  cnt_pos_FT: "/home/hyohyeongjang/2024SWELL/meta/cnt_pos_FT_v3.pk" # used in getWords
+  file_wordStats_CT: "/home/hyohyeongjang/2024SWELL/meta/word_ct_v3.pk" # used in getWords
+  file_wordStats_FT: "/home/hyohyeongjang/2024SWELL/meta/word_ft_v3.pk" # used in getWords
   uposToPenn: '{"ADJ": ["JJ", "JJR", "JJS"], "ADV": ["RB", "RBR", "RBS", "WRB"],
                 "ADP": ["RP", "IN", "TO"],  "AUX": ["MD", "VB", "VBP", "VBG", "VBN", "VBD", "VBZ"], 
                 "CCONJ": ["CC"], "DET": ["DT", "PDT", "WDT"], "INTJ": ["UH"],
@@ -40,19 +42,19 @@ dataStats:
   labelToId: "{'NOUN': '0','PUNCT': '1','PART': '2','NUM': '3','SYM': '4','SCONJ': '5',
               'ADJ': '6','ADP': '7','DET': '8','CCONJ': '9','PROPN': '10','PRON': '11',
               'X': '12','UNK': '13','ADV': '14','INTJ': '15','VERB': '16','AUX': '17'}"
-  subwordPos_CT: "/home/hyohyeongjang/2024SWELL/meta/subwordPos_CT.pk"
-  subword_CT: "/home/hyohyeongjang/2024SWELL/meta/subword_CT.pk"
-  pos_freq_CT: "/home/hyohyeongjang/2024SWELL/meta/pos_freq_CT.pk"
-  pos_abund_CT:  "/home/hyohyeongjang/2024SWELL/meta/pos_abund_CT.pk"
-  scores_original_CT: "/home/hyohyeongjang/2024SWELL/scores/score_CT_original_{}.pk" # used in getScores
-  scores_masked_CT: "/home/hyohyeongjang/2024SWELL/scores/score_CT_mask_{}.pk" # used in getScores
+  subwordPos_CT: "/home/hyohyeongjang/2024SWELL/meta/subwordPos_CT_v3.pk"
+  subword_CT: "/home/hyohyeongjang/2024SWELL/meta/subword_CT_v3.pk"
+  pos_freq_CT: "/home/hyohyeongjang/2024SWELL/meta/pos_freq_CT_v3.pk"
+  pos_abund_CT:  "/home/hyohyeongjang/2024SWELL/meta/pos_abund_CT_v3.pk"
+  scores_original_CT: "/home/hyohyeongjang/2024SWELL/scores/score_CT_original_{}_v3.pk" # used in getScores
+  scores_masked_CT: "/home/hyohyeongjang/2024SWELL/scores/score_CT_mask_{}_v3.pk" # used in getScores
   checkpoint_pplModel: "meta-llama/Meta-Llama-3-8B-Instruct" # used in getScores
   num_cores: 40 # making dataset
 
 contFiles:
   ratio: [0.25, 0.5, 0.75, 1.0]
-  data_CT: "/home/hyohyeongjang/2024SWELL/data_CT/CT_{}_{}_{}.pk" # used in getFiles
-  data_FT: "/home/hyohyeongjang/2024SWELL/data_FT/FT_{}_{}_{}.pk" # used in getFiles
+  data_CT: "/home/hyohyeongjang/2024SWELL/data_CT/CT_{}_{}_{}_v3.pk" # used in getFiles
+  data_FT: "/home/hyohyeongjang/2024SWELL/data_FT/FT_{}_{}_{}_v3.pk" # used in getFiles
 
 contTrain:
   checkpoint_baseModel: "FacebookAI/roberta-base" # used in continualTrain
