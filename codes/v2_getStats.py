@@ -842,8 +842,7 @@ def main(args, config):
         eval_dataloader = DataLoader(eval_dataset, batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn)
 
     # Move model to GPU if available
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
+    model.to(args.local_rank)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
     num_training_steps = sum([len(i) for i in train_dataloader]) * 10  # Assuming 3 epochs
@@ -854,12 +853,16 @@ def main(args, config):
 
 
     #logger setting
-    if args.local_rank == 0:
+    if args.ddp and args.local_rank == 0:
         logging.basicConfig(filename="trainingSteps.log", 
                         format='%(asctime)s %(levelname)s:%(message)s',
                         datefmt='%Y%m%d %H%M%S',
                         level=logging.INFO)
-
+    if not args.ddp:
+        logging.basicConfig(filename="trainingSteps.log", 
+                        format='%(asctime)s %(levelname)s:%(message)s',
+                        datefmt='%Y%m%d %H%M%S',
+                        level=logging.INFO)
     
     num_epochs = 10
 
@@ -874,7 +877,7 @@ def main(args, config):
 
         for batch in progress_bar:
             
-            batch = {"input_ids": batch['input_ids'].to(device), "attention_mask": batch['attention_mask'].to(device), "labels": batch['label'].to(device)}
+            batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
             
             outputs = model(**batch)
             logits = outputs.logits
@@ -914,7 +917,7 @@ def main(args, config):
 
             for batch in progress_bar:
                 
-                batch = {"input_ids": batch['input_ids'].to(device), "attention_mask": batch['attention_mask'].to(device), "labels": batch['label'].to(device)}
+                batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
 
                 # Forward pass
                 outputs = model(**batch)
@@ -971,7 +974,7 @@ def main(args, config):
                 progress_bar = tqdm(eval_dataloader, desc=f"evaluating...")
                 for batch in progress_bar:
                     
-                    batch = {"input_ids": batch['input_ids'].to(device), "attention_mask": batch['attention_mask'].to(device), "labels": batch['label'].to(device)}
+                    batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
                     
                     outputs = model(**batch)
                     logits = outputs.logits
