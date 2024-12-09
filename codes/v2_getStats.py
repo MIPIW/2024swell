@@ -339,7 +339,7 @@ def _process_chunk4(pos, df):
 
     return {pos: [quant_pos[i] for i in np.arange(0.1, 1.1, 0.1)]}
 
-def tokenize_and_align_labels(examples, args, config, tokenizer, unPos_idx):
+def tokenize_and_align_labels(examples, args, config, tokenizer, unPos_idx, pos_idx):
     
     tokenized_inputs = tokenizer(examples["text"], truncation=True, padding="max_length", max_length=512, is_split_into_words = True)
     
@@ -357,8 +357,9 @@ def tokenize_and_align_labels(examples, args, config, tokenizer, unPos_idx):
                 label_ids.append(-100)
             previous_word_idx = word_idx
 
-        if unPos_idx is not None:
-            label_ids = [-100 if j in unPos_idx else j for j in label_ids]
+        # if unPos_idx is not None:
+        # if pos_idx is not None:
+        #     label_ids = [j if j == pos_idx else -100 for j in label_ids]
 
         labels.append(label_ids)
     
@@ -630,412 +631,436 @@ def main(args, config):
     # pd.DataFrame.from_dict(u_highQ, orient = "index").to_csv(config['dataStats']['otherPosQuantilesHighUnique'])
         
 
-   ############# filter those which have even tokens
-    FULL_POS = config['dataStats']['correctXPosNoSym']
+#    ############# filter those which have even tokens
+#     FULL_POS = config['dataStats']['correctXPosNoSym']
     
-    pos_normal = pd.DataFrame(columns=FULL_POS)
-    pos_unique = pd.DataFrame(columns=FULL_POS)
+#     pos_normal = pd.DataFrame(columns=FULL_POS)
+#     pos_unique = pd.DataFrame(columns=FULL_POS)
 
-    for i in tqdm(range(10)):
-        df_normal_count = pd.read_csv(config['dataStats']['pos_freq_CT']+f"_{i}_normal.csv")
-        df_unique_count = pd.read_csv(config['dataStats']['pos_freq_CT']+f"_{i}_unique.csv")
+#     for i in tqdm(range(10)):
+#         df_normal_count = pd.read_csv(config['dataStats']['pos_freq_CT']+f"_{i}_normal.csv")
+#         df_unique_count = pd.read_csv(config['dataStats']['pos_freq_CT']+f"_{i}_unique.csv")
 
-        pos_normal = pd.concat([pos_normal, df_normal_count], axis = 0).reset_index(drop = True)
-        pos_unique = pd.concat([pos_unique, df_unique_count], axis = 0).reset_index(drop = True)
+#         pos_normal = pd.concat([pos_normal, df_normal_count], axis = 0).reset_index(drop = True)
+#         pos_unique = pd.concat([pos_unique, df_unique_count], axis = 0).reset_index(drop = True)
 
-    for pos in FINAL_TARGET_POS:
-        # if pos == FINAL_TARGET_POS[0]:
-        #     unPos = FINAL_TARGET_POS[1]
-        # else:
-        #     unPos = FINAL_TARGET_POS[0]
+#     for pos in FINAL_TARGET_POS:
+#         # if pos == FINAL_TARGET_POS[0]:
+#         #     unPos = FINAL_TARGET_POS[1]
+#         # else:
+#         #     unPos = FINAL_TARGET_POS[0]
         
-        # target_low_off = pos_normal[pos].map(lambda x: ranges[0][0] <= x <= ranges[0][1] )
-        target_low_idx = pos_normal[pos].map(lambda x: FINAL_RANGE[1][0] <= x <= FINAL_RANGE[1][1] )
-        target_high_idx = pos_normal[pos].map(lambda x: FINAL_RANGE[2][0] <= x <= FINAL_RANGE[2][1] )
-        # target_high_off = pos_normal[pos].map(lambda x: ranges[3][0] <= x <= ranges[3][1] )
+#         # target_low_off = pos_normal[pos].map(lambda x: ranges[0][0] <= x <= ranges[0][1] )
+#         target_low_idx = pos_normal[pos].map(lambda x: FINAL_RANGE[1][0] <= x <= FINAL_RANGE[1][1] )
+#         target_high_idx = pos_normal[pos].map(lambda x: FINAL_RANGE[2][0] <= x <= FINAL_RANGE[2][1] )
+#         # target_high_off = pos_normal[pos].map(lambda x: ranges[3][0] <= x <= ranges[3][1] )
 
-        print(pos, target_low_idx.sum(), target_high_idx.sum())
+#         print(pos, target_low_idx.sum(), target_high_idx.sum())
 
-        n_tgt_low = pos_normal[target_low_idx]
-        n_tgt_high = pos_normal[target_high_idx]
-        u_tgt_low = pos_unique[target_low_idx]
-        u_tgt_high = pos_unique[target_high_idx]
+#         n_tgt_low = pos_normal[target_low_idx]
+#         n_tgt_high = pos_normal[target_high_idx]
+#         u_tgt_low = pos_unique[target_low_idx]
+#         u_tgt_high = pos_unique[target_high_idx]
 
-        # filter by quantile
-        n_tgt_low_noPos = n_tgt_low.drop(columns = pos, inplace = False)
-        n_tgt_high_noPos = n_tgt_high.drop(columns = pos, inplace = False)
-        u_tgt_low_noPos = u_tgt_low.drop(columns = pos, inplace = False)
-        u_tgt_high_noPos = u_tgt_high.drop(columns = pos, inplace = False)
+#         # filter by quantile
+#         n_tgt_low_noPos = n_tgt_low.drop(columns = pos, inplace = False)
+#         n_tgt_high_noPos = n_tgt_high.drop(columns = pos, inplace = False)
+#         u_tgt_low_noPos = u_tgt_low.drop(columns = pos, inplace = False)
+#         u_tgt_high_noPos = u_tgt_high.drop(columns = pos, inplace = False)
 
-        n_stdLow = n_tgt_low_noPos.std(axis = 1)
-        n_stdHigh = n_tgt_high_noPos.std(axis = 1)
-        u_stdLow = u_tgt_low_noPos.std(axis = 1)
-        u_stdHigh = u_tgt_high_noPos.std(axis = 1)
+#         n_stdLow = n_tgt_low_noPos.std(axis = 1)
+#         n_stdHigh = n_tgt_high_noPos.std(axis = 1)
+#         u_stdLow = u_tgt_low_noPos.std(axis = 1)
+#         u_stdHigh = u_tgt_high_noPos.std(axis = 1)
 
-        n_stdLow_base = n_stdLow.quantile(0.1)
-        n_stdLow_top = n_stdLow.quantile(0.9)
-        n_stdHigh_base = n_stdHigh.quantile(0.1)
-        n_stdHigh_top = n_stdHigh.quantile(0.9)
-        u_stdLow_base = u_stdLow.quantile(0.1)
-        u_stdLow_top = u_stdLow.quantile(0.9)
-        u_stdHigh_base = u_stdHigh.quantile(0.1)
-        u_stdHigh_top = u_stdHigh.quantile(0.9)
+#         n_stdLow_base = n_stdLow.quantile(0.1)
+#         n_stdLow_top = n_stdLow.quantile(0.9)
+#         n_stdHigh_base = n_stdHigh.quantile(0.1)
+#         n_stdHigh_top = n_stdHigh.quantile(0.9)
+#         u_stdLow_base = u_stdLow.quantile(0.1)
+#         u_stdLow_top = u_stdLow.quantile(0.9)
+#         u_stdHigh_base = u_stdHigh.quantile(0.1)
+#         u_stdHigh_top = u_stdHigh.quantile(0.9)
 
-        n_stdLow_tgt = n_stdLow.map(lambda x: n_stdLow_base < x < n_stdLow_top).reindex(range(len(target_low_idx)), fill_value=False)
-        n_stdHigh_tgt = n_stdHigh.map(lambda x: n_stdHigh_base < x < n_stdHigh_top).reindex(range(len(target_high_idx)), fill_value=False)
-        u_stdLow_tgt = u_stdLow.map(lambda x: u_stdLow_base < x < u_stdLow_top).reindex(range(len(target_low_idx)), fill_value=False)
-        u_stdHigh_tgt = u_stdHigh.map(lambda x: u_stdHigh_base < x < u_stdHigh_top).reindex(range(len(target_high_idx)), fill_value=False)
+#         n_stdLow_tgt = n_stdLow.map(lambda x: n_stdLow_base < x < n_stdLow_top).reindex(range(len(target_low_idx)), fill_value=False)
+#         n_stdHigh_tgt = n_stdHigh.map(lambda x: n_stdHigh_base < x < n_stdHigh_top).reindex(range(len(target_high_idx)), fill_value=False)
+#         u_stdLow_tgt = u_stdLow.map(lambda x: u_stdLow_base < x < u_stdLow_top).reindex(range(len(target_low_idx)), fill_value=False)
+#         u_stdHigh_tgt = u_stdHigh.map(lambda x: u_stdHigh_base < x < u_stdHigh_top).reindex(range(len(target_high_idx)), fill_value=False)
 
-        # filter by unPos
-        # unMin_low = n_tgt_low[unPos] <= 1
-        # unMin_high = n_tgt_high[unPos] <= 1
-        # unMin_low_eval = n_tgt_low[unPos] > 1
-        # unMin_high_eval = n_tgt_high[unPos] > 1
-        eval_low_idx = n_stdLow.map(lambda x: n_stdLow_top < x).reindex(range(len(target_low_idx)))
-        eval_high_idx = n_stdHigh.map(lambda x: n_stdHigh_top < x).reindex(range(len(target_high_idx)))
+#         # filter by unPos
+#         # unMin_low = n_tgt_low[unPos] <= 1
+#         # unMin_high = n_tgt_high[unPos] <= 1
+#         # unMin_low_eval = n_tgt_low[unPos] > 1
+#         # unMin_high_eval = n_tgt_high[unPos] > 1
+#         eval_low_idx = n_stdLow.map(lambda x: n_stdLow_top < x).reindex(range(len(target_low_idx)))
+#         eval_high_idx = n_stdHigh.map(lambda x: n_stdHigh_top < x).reindex(range(len(target_high_idx)))
 
-        # unMin_low = unMin_low.reindex(range(len(target_low_idx)), fill_value=False)
-        # unMin_high = unMin_high.reindex(range(len(target_low_idx)), fill_value=False)
-        # unMin_low_eval = unMin_low_eval.reindex(range(len(target_low_idx)), fill_value=False)
-        # unMin_high_eval = unMin_high_eval.reindex(range(len(target_low_idx)), fill_value=False)
+#         # unMin_low = unMin_low.reindex(range(len(target_low_idx)), fill_value=False)
+#         # unMin_high = unMin_high.reindex(range(len(target_low_idx)), fill_value=False)
+#         # unMin_low_eval = unMin_low_eval.reindex(range(len(target_low_idx)), fill_value=False)
+#         # unMin_high_eval = unMin_high_eval.reindex(range(len(target_low_idx)), fill_value=False)
         
-        # print(unMin_low, unMin_high, unMin_low_eval, unMin_high_eval)
+#         # print(unMin_low, unMin_high, unMin_low_eval, unMin_high_eval)
 
-        # eval_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt & unMin_low_eval]
-        # eval_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt & unMin_high_eval]
-        # target_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt & unMin_low]
-        # target_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt & unMin_high]
+#         # eval_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt & unMin_low_eval]
+#         # eval_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt & unMin_high_eval]
+#         # target_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt & unMin_low]
+#         # target_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt & unMin_high]
 
-        eval_low_idx = pos_normal[target_low_idx & eval_low_idx]
-        eval_high_idx = pos_normal[target_high_idx & eval_high_idx]
-        target_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt]
-        target_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt]
+#         eval_low_idx = pos_normal[target_low_idx & eval_low_idx]
+#         eval_high_idx = pos_normal[target_high_idx & eval_high_idx]
+#         target_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt]
+#         target_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt]
 
-        print(pos, len(target_low_idx), len(target_high_idx), len(eval_low_idx), len(eval_high_idx))
+#         print(pos, len(target_low_idx), len(target_high_idx), len(eval_low_idx), len(eval_high_idx))
 
-        with open(config['contFiles']['data_CT'].format(pos, "low"), "wb") as f:
-            pickle.dump([target_low_idx, eval_low_idx], f)
+#         with open(config['contFiles']['data_CT'].format(pos, "low"), "wb") as f:
+#             pickle.dump([target_low_idx, eval_low_idx], f)
         
-        with open(config['contFiles']['data_CT'].format(pos, "high"), "wb") as f:
-            pickle.dump([target_high_idx, eval_high_idx], f)
+#         with open(config['contFiles']['data_CT'].format(pos, "high"), "wb") as f:
+#             pickle.dump([target_high_idx, eval_high_idx], f)
 
 
 
-    # ############### extract data by idx
-    tot_former = 0
+#     # ############### extract data by idx
+#     tot_former = 0
     
-    for i in tqdm(range(10)):
+#     for i in tqdm(range(10)):
 
-        with open(config['originalData']['raw_CT']+f"_{i}_process_d2.pk", "rb") as f:
-            sent_lower = pickle.load(f)
-            sent_lower = pd.Series(sent_lower)
+#         with open(config['originalData']['raw_CT']+f"_{i}_process_d2.pk", "rb") as f:
+#             sent_lower = pickle.load(f)
+#             sent_lower = pd.Series(sent_lower)
 
-        with open(config['originalData']['raw_CT']+f"_{i}_process_d3.pk", "rb") as f:
-            sent_pos = pickle.load(f)
-            sent_pos = pd.Series([i[1] for i in sent] for sent in sent_pos)
+#         with open(config['originalData']['raw_CT']+f"_{i}_process_d3.pk", "rb") as f:
+#             sent_pos = pickle.load(f)
+#             sent_pos = pd.Series([i[1] for i in sent] for sent in sent_pos)
             
-        sent_lower.index = pd.RangeIndex(start=tot_former, stop=tot_former+len(sent_lower))
-        sent_pos.index = pd.RangeIndex(start=tot_former, stop=tot_former+len(sent_pos))
+#         sent_lower.index = pd.RangeIndex(start=tot_former, stop=tot_former+len(sent_lower))
+#         sent_pos.index = pd.RangeIndex(start=tot_former, stop=tot_former+len(sent_pos))
 
-        print(sent_lower.head(), sent_pos.head(), len(sent_lower), len(sent_pos))
+#         print(sent_lower.head(), sent_pos.head(), len(sent_lower), len(sent_pos))
     
-        for pos in tqdm(FINAL_TARGET_POS):
+#         for pos in tqdm(FINAL_TARGET_POS):
             
-            with open(config['contFiles']['data_CT'].format(pos, "low"), "rb") as f:
-                idx_low, eval_idx_low = pickle.load(f)
+#             with open(config['contFiles']['data_CT'].format(pos, "low"), "rb") as f:
+#                 idx_low, eval_idx_low = pickle.load(f)
             
-            with open(config['contFiles']['data_CT'].format(pos, "high"), "rb") as f:
-                idx_high, eval_idx_high = pickle.load(f) 
+#             with open(config['contFiles']['data_CT'].format(pos, "high"), "rb") as f:
+#                 idx_high, eval_idx_high = pickle.load(f) 
 
-            print(idx_low.head(), idx_high.head())
+#             print(idx_low.head(), idx_high.head())
              
-            idx_low = idx_low.loc[(idx_low.index > tot_former) & (idx_low.index < (tot_former + len(sent_lower)))].index
-            idx_high = idx_high.iloc[(idx_high.index > tot_former) & (idx_high.index < (tot_former + len(sent_lower)))].index
-            eval_idx_low = eval_idx_low.loc[(eval_idx_low.index > tot_former) & (eval_idx_low.index < (tot_former + len(sent_lower)))].index
-            eval_idx_high = eval_idx_high.loc[(eval_idx_high.index > tot_former) & (eval_idx_high.index < (tot_former + len(sent_lower)))].index
+#             idx_low = idx_low.loc[(idx_low.index > tot_former) & (idx_low.index < (tot_former + len(sent_lower)))].index
+#             idx_high = idx_high.iloc[(idx_high.index > tot_former) & (idx_high.index < (tot_former + len(sent_lower)))].index
+#             eval_idx_low = eval_idx_low.loc[(eval_idx_low.index > tot_former) & (eval_idx_low.index < (tot_former + len(sent_lower)))].index
+#             eval_idx_high = eval_idx_high.loc[(eval_idx_high.index > tot_former) & (eval_idx_high.index < (tot_former + len(sent_lower)))].index
 
-            sent_low = sent_lower[idx_low]
-            sent_high = sent_lower[idx_high]
-            label_low = sent_pos[idx_low]
-            label_high = sent_pos[idx_high]
+#             sent_low = sent_lower[idx_low]
+#             sent_high = sent_lower[idx_high]
+#             label_low = sent_pos[idx_low]
+#             label_high = sent_pos[idx_high]
 
-            eval_sent_low = sent_lower[eval_idx_low]
-            eval_sent_high = sent_lower[eval_idx_high]
-            eval_label_low = sent_pos[eval_idx_low]
-            eval_label_high = sent_pos[eval_idx_high]
+#             eval_sent_low = sent_lower[eval_idx_low]
+#             eval_sent_high = sent_lower[eval_idx_high]
+#             eval_label_low = sent_pos[eval_idx_low]
+#             eval_label_high = sent_pos[eval_idx_high]
 
-            with open(config['contFiles']['data_CT_str'].format(i, pos, "low"), "wb") as f:
-                pickle.dump([sent_low, label_low, eval_sent_low, eval_label_low], f)
+#             with open(config['contFiles']['data_CT_str'].format(i, pos, "low"), "wb") as f:
+#                 pickle.dump([sent_low, label_low, eval_sent_low, eval_label_low], f)
             
-            with open(config['contFiles']['data_CT_str'].format(i, pos, "high"), "wb") as f:
-                pickle.dump([sent_high, label_high, eval_sent_high, eval_label_high], f)   
+#             with open(config['contFiles']['data_CT_str'].format(i, pos, "high"), "wb") as f:
+#                 pickle.dump([sent_high, label_high, eval_sent_high, eval_label_high], f)   
 
-        tot_former += len(sent_lower)
+#         tot_former += len(sent_lower)
 
 
 
-    train_dataset_dic = {}
-    eval_dataset_df = pd.DataFrame(columns = ['text', 'label'])
+#     train_dataset_dic = {}
+#     eval_dataset_df = pd.DataFrame(columns = ['text', 'label'])
 
-    for lowHigh in ['low', 'high']:
-        for pos in tqdm(FINAL_TARGET_POS):    
+#     for lowHigh in ['low', 'high']:
+#         for pos in tqdm(FINAL_TARGET_POS):    
             
-            serData = pd.Series()
-            serLabel = pd.Series()
-            serEvaldata = pd.Series()
-            serEvalLabel = pd.Series()
-            for i in range(10):
-                with open(config['contFiles']['data_CT_str'].format(i, pos, lowHigh), "rb") as f:
-                    data, label, eval_data, eval_label = pickle.load(f)
+#             serData = pd.Series()
+#             serLabel = pd.Series()
+#             serEvaldata = pd.Series()
+#             serEvalLabel = pd.Series()
+#             for i in range(10):
+#                 with open(config['contFiles']['data_CT_str'].format(i, pos, lowHigh), "rb") as f:
+#                     data, label, eval_data, eval_label = pickle.load(f)
                     
-                serData = pd.concat([serData, data], ignore_index = True)
-                serLabel = pd.concat([serLabel, label], ignore_index = True)
-                serEvaldata = pd.concat([serEvaldata, eval_data], ignore_index = True)
-                serEvalLabel = pd.concat([serEvalLabel, eval_label], ignore_index = True)
+#                 serData = pd.concat([serData, data], ignore_index = True)
+#                 serLabel = pd.concat([serLabel, label], ignore_index = True)
+#                 serEvaldata = pd.concat([serEvaldata, eval_data], ignore_index = True)
+#                 serEvalLabel = pd.concat([serEvalLabel, eval_label], ignore_index = True)
         
-            serData = serData.reset_index(drop = True)
-            serLabel = serLabel.reset_index(drop = True)
-            serEvaldata = serEvaldata.reset_index(drop = True)
-            serEvalLabel = serEvalLabel.reset_index(drop = True)
+#             serData = serData.reset_index(drop = True)
+#             serLabel = serLabel.reset_index(drop = True)
+#             serEvaldata = serEvaldata.reset_index(drop = True)
+#             serEvalLabel = serEvalLabel.reset_index(drop = True)
 
-            data = pd.concat([serData, serLabel], axis = 1)
-            eval_data = pd.concat([serEvaldata, serEvalLabel], axis = 1)
+#             data = pd.concat([serData, serLabel], axis = 1)
+#             eval_data = pd.concat([serEvaldata, serEvalLabel], axis = 1)
             
-            data.columns = ['text', 'label']
-            eval_data.columns = ['text', 'label']
-            train_data = data.sample(n = 80000, random_state=42)
-            eval_data = eval_data.sample(n = 5000, random_state=42)
+#             data.columns = ['text', 'label']
+#             eval_data.columns = ['text', 'label']
+#             train_data = data.sample(n = 80000, random_state=42)
+#             eval_data = eval_data.sample(n = 5000, random_state=42)
             
 
-            train_dataset_dic[f"{pos}_{lowHigh}"] = Dataset.from_pandas(train_data.reset_index(drop = True))
-            eval_dataset_df = pd.concat([eval_dataset_df, eval_data], axis = 0)
+#             train_dataset_dic[f"{pos}_{lowHigh}"] = Dataset.from_pandas(train_data.reset_index(drop = True))
+#             eval_dataset_df = pd.concat([eval_dataset_df, eval_data], axis = 0)
     
-    eval_dataset = Dataset.from_pandas(eval_dataset_df.reset_index(drop = True))
+#     eval_dataset = Dataset.from_pandas(eval_dataset_df.reset_index(drop = True))
     
-    with open(config['contFiles']['train_dataset_CT'], "wb") as f:
-        pickle.dump(train_dataset_dic, f)
+#     with open(config['contFiles']['train_dataset_CT'], "wb") as f:
+#         pickle.dump(train_dataset_dic, f)
 
-    with open(config['contFiles']['eval_dataset_CT'], "wb") as f:
-        pickle.dump(eval_dataset, f)
-    
-
-
-
-    ### train model
-    # model_name = "FacebookAI/roberta-base"
-    # num_labels = 39  # Number of classes for token classification
-    # tokenizer = AutoTokenizer.from_pretrained(model_name, add_prefix_space=True)
-    # model = AutoModelForTokenClassification.from_pretrained(model_name, num_labels=num_labels)
-    # model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(0, "base"))
-
-    # with open(config['contFiles']['train_dataset_CT'], "rb") as f:
-    #     train_dataset_dic = pickle.load(f)
-
-    # with open(config['contFiles']['eval_dataset_CT'], "rb") as f:
-    #     eval_dataset = pickle.load(f)
-
-    # train_dataset = {}
-    # for key, value in train_dataset_dic.items():
-    #     pos = key.split("_")[0]
-    #     unPos_idx = [item for item in FINAL_TARGET_POS if item != pos]
-    #     unPos_idx = [config['dataStats']['labelToId'][i] for i in unPos_idx]
-
-    #     f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = unPos_idx)
-    #     train_dataset[key] = value.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
-
-    # train_dataset = {key: val.remove_columns("text") for key, val in train_dataset.items()}
-
-    # f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = None)
-    # eval_dataset = eval_dataset.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
-    # eval_dataset = eval_dataset.remove_columns('text')
-        
-    #     # Create DataLoaders
-    # if ddp:
-    #     train_dataloader = {key: DataLoader(val, sampler=DistributedSampler(val), batch_size=config['contTrain']['batch_size'], shuffle=False, collate_fn=debug_collate_fn) for key, val in train_dataset.items()}
-    #     eval_dataloader = DataLoader(eval_dataset, sampler=DistributedSampler(eval_dataset), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn)
-    # else:
-    #     train_dataloader = {key: DataLoader(val, batch_size=config['contTrain']['batch_size'], shuffle=True, collate_fn=debug_collate_fn) for key, val in train_dataset.items()}
-    #     eval_dataloader = DataLoader(eval_dataset, batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn)
-
-    # # Move model to GPU if available
-    # model.to(args.local_rank)
-    
-    # if args.ddp:
-    #     model = DDP(model, device_ids=[args.local_rank])
-
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
-    # num_training_steps = sum([len(i) for i in train_dataloader]) * 10  # Assuming 3 epochs
-    # lr_scheduler = get_scheduler(
-    #     name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
-    # )
-
-    # #logger setting
-    # logging.basicConfig(filename="trainingSteps.log", 
-    #                 format='%(asctime)s %(levelname)s:%(message)s',
-    #                 datefmt='%Y%m%d %H%M%S',
-    #                 level=logging.INFO)
-
-    # num_epochs = 10
-
-
-    # # baseline evaluation
-    # eval_correct_count = defaultdict(int, {label: 0 for label in range(num_labels)})
-    # eval_total_count = defaultdict(int, {label: 0 for label in range(num_labels)})
-
-    # model.eval()
-
-    # with torch.no_grad():
-    #     progress_bar = tqdm(eval_dataloader, desc=f"evaluating...")
-
-    #     for batch in progress_bar:
-            
-    #         batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
-            
-    #         outputs = model(**batch)
-    #         logits = outputs.logits
-            
-    #         preds = logits.detach().cpu().numpy()
-    #         labels = batch["labels"].detach().cpu().numpy()
-    #         label_accuracies = compute_label_accuracies(preds, labels, num_labels)
-        
-    #         for label, acc in label_accuracies.items():
-    #             if acc is not None:
-    #                 eval_correct_count[label] += acc * len(np.where(labels == label)[0])
-    #                 eval_total_count[label] += len(np.where(labels == label)[0])
-        
-    #     if args.ddp:
-    #         reduce_dict(args, eval_correct_count, num_labels)
-    #         reduce_dict(args, eval_total_count, num_labels)
-
-    #     dist.barrier()
-    #     if (args.ddp and dist.get_rank() == 0) or not args.ddp:
-    #         out = ""
-    #         for label in range(num_labels):
-    #             if eval_total_count[label] > 0:
-    #                 acc = eval_correct_count[label] / eval_total_count[label]
-    #                 out += f"{round(acc, 4)}    "
-    #             else:
-    #                 out += "X   "
-    #         logging.info("---eval accuracy at 0 of base--------------------------------------")        
-    #         logging.info(out)
-        
-    #     dist.barrier()
+#     with open(config['contFiles']['eval_dataset_CT'], "wb") as f:
+#         pickle.dump(eval_dataset, f)
     
 
-    # for epoch in range(num_epochs):
 
-    #     for e, subEpoch in enumerate(['JJR_low', 'WP_low', 'JJR_high', 'WP_high']):
+    
+    ## train model
+    model_name = "FacebookAI/roberta-base"
+    num_labels = 39  # Number of classes for token classification
+    tokenizer = AutoTokenizer.from_pretrained(model_name, add_prefix_space=True)
+    model = AutoModelForTokenClassification.from_pretrained(model_name, num_labels=num_labels)
+    model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(0, "base"))
 
-    #         model.train()
-    #         if args.ddp:
-    #             train_dataloader[subEpoch].sampler.set_epoch(epoch)
-    #         progress_bar = tqdm(train_dataloader[subEpoch], desc=f"E: {epoch}, SE: {e}")
-    #         total_loss = 0
-    #         total_acc = 0
-    #         step = 0
-    #         label_correct_counts = defaultdict(int, {label: 0 for label in range(num_labels)})
-    #         label_total_counts = defaultdict(int, {label: 0 for label in range(num_labels)})
+    with open(config['contFiles']['train_dataset_CT'], "rb") as f:
+        train_dataset_dic = pickle.load(f)
 
-    #         for batch in progress_bar:
+    with open(config['contFiles']['eval_dataset_CT'], "rb") as f:
+        eval_dataset = pickle.load(f)
+
+    train_dataset = {}
+    for key, value in train_dataset_dic.items():
+        pos = key.split("_")[0]
+        unPos_idx = [item for item in FINAL_TARGET_POS if item != pos]
+        unPos_idx = [config['dataStats']['labelToId'][i] for i in unPos_idx]
+
+        f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = None, pos_idx = config['dataStats']['labelToId'][pos])
+        train_dataset[key] = value.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
+
+    train_dataset = {key: val.remove_columns("text") for key, val in train_dataset.items()}
+
+    f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = None, pos_idx = None)
+    eval_dataset = eval_dataset.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
+    eval_dataset = eval_dataset.remove_columns('text')
+        
+        # Create DataLoaders
+    if ddp:
+        train_dataloader = {key: DataLoader(val, sampler=DistributedSampler(val), batch_size=config['contTrain']['batch_size'], shuffle=False, collate_fn=debug_collate_fn) for key, val in train_dataset.items()}
+        eval_dataloader = DataLoader(eval_dataset, sampler=DistributedSampler(eval_dataset), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn)
+    else:
+        train_dataloader = {key: DataLoader(val, batch_size=config['contTrain']['batch_size'], shuffle=True, collate_fn=debug_collate_fn) for key, val in train_dataset.items()}
+        eval_dataloader = DataLoader(eval_dataset, batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn)
+
+    # Move model to GPU if available
+    model.to(args.local_rank)
+    
+    if args.ddp:
+        model = DDP(model, device_ids=[args.local_rank])
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay = 0.01)
+    num_training_steps = sum([len(i) for i in train_dataloader]) * 10  # Assuming 3 epochs
+    lr_scheduler = get_scheduler(
+        name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
+    )
+
+    if args.ddp and dist.get_rank() == 0:
+        logging.basicConfig(
+            filename="trainingSteps.log", 
+            format='%(asctime)s %(levelname)s:%(message)s',
+            datefmt='%Y%m%d %H%M%S',
+            level=logging.INFO
+        )
+    elif not args.ddp:
+        logging.basicConfig(
+            filename="trainingSteps.log", 
+            format='%(asctime)s %(levelname)s:%(message)s',
+            datefmt='%Y%m%d %H%M%S',
+            level=logging.INFO
+    )
+
+    num_epochs = 10
+
+
+    # baseline evaluation
+    eval_correct_count = defaultdict(int, {label: 0 for label in range(num_labels)})
+    eval_total_count = defaultdict(int, {label: 0 for label in range(num_labels)})
+
+    model.eval()
+
+    with torch.no_grad():
+        progress_bar = tqdm(eval_dataloader, desc=f"evaluating...")
+
+        for batch in progress_bar:
+            
+            batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
+            
+            outputs = model(**batch)
+            logits = outputs.logits
+            
+            preds = logits.detach().cpu().numpy()
+            labels = batch["labels"].detach().cpu().numpy()
+            label_accuracies = compute_label_accuracies(preds, labels, num_labels)
+        
+            for label, acc in label_accuracies.items():
+                if acc is not None:
+                    eval_correct_count[label] += acc * len(np.where(labels == label)[0])
+                    eval_total_count[label] += len(np.where(labels == label)[0])
+        
+        dist.barrier()
+
+        if args.ddp:
+            reduce_dict(args, eval_correct_count, num_labels)
+            reduce_dict(args, eval_total_count, num_labels)
+
+        dist.barrier()
+        if (args.ddp and dist.get_rank() == 0) or not args.ddp:
+            print("i will write this!")
+            out = ""
+            for label in range(num_labels):
+                if eval_total_count[label] > 0:
+                    acc = eval_correct_count[label] / eval_total_count[label]
+                    out += f"{round(acc, 4)}    "
+                else:
+                    out += "X   "
                 
-    #             batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
+                print(label, eval_correct_count[label], eval_total_count[label])
 
-    #             # Forward pass
-    #             outputs = model(**batch)
-    #             loss = outputs.loss
-    #             logits = outputs.logits
-    #             # Backward pass and optimization
-    #             optimizer.zero_grad()
-    #             loss.backward()
-    #             optimizer.step()
-    #             lr_scheduler.step()
+            logging.info("---eval accuracy at 0 of base--------------------------------------")        
+            logging.info(out)
+        
+        dist.barrier()
+    
 
-    #             # Compute per-label accuracy for this batch
-    #             preds = logits.detach().cpu().numpy()
-    #             labels = batch["labels"].detach().cpu().numpy()
-    #             label_accuracies = compute_label_accuracies(preds, labels, num_labels)
+    for epoch in range(num_epochs):
 
-    #             # Track total counts for each label
-    #             for label, acc in label_accuracies.items():
-    #                 if acc is not None:
-    #                     label_correct_counts[label] += acc * len(np.where(labels == label)[0])
-    #                     label_total_counts[label] += len(np.where(labels == label)[0])
+        for e, subEpoch in enumerate([f"{i}_low" for i in FINAL_TARGET_POS] + [f"{i}_high" for i in FINAL_TARGET_POS]):
+            print(subEpoch)
 
-    #             # Track total loss
-    #             total_loss += loss.item()
-    #             step += 1
+            model.train()
+            if args.ddp:
+                train_dataloader[subEpoch].sampler.set_epoch(epoch)
+            progress_bar = tqdm(train_dataloader[subEpoch], desc=f"E: {epoch}, SE: {e}")
+            total_loss = 0
+            total_acc = 0
+            step = 0
+            label_correct_counts = defaultdict(int, {label: 0 for label in range(num_labels)})
+            label_total_counts = defaultdict(int, {label: 0 for label in range(num_labels)})
 
-    #             # Display loss and accuracy in the progress bar
-    #             progress_bar.set_postfix(loss=loss.item())
+            for batch in progress_bar:
+                
+                batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
 
-    #         # Calculate average loss and accuracy per label
-    #         avg_loss = total_loss / step
+                # Forward pass
+                outputs = model(**batch)
+                loss = outputs.loss
+                logits = outputs.logits
+                # Backward pass and optimization
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                lr_scheduler.step()
+
+                # Compute per-label accuracy for this batch
+                preds = logits.detach().cpu().numpy()
+                labels = batch["labels"].detach().cpu().numpy()
+                label_accuracies = compute_label_accuracies(preds, labels, num_labels)
+
+                # Track total counts for each label
+                for label, acc in label_accuracies.items():
+                    if acc is not None:
+                        label_correct_counts[label] += acc * len(np.where(labels == label)[0])
+                        label_total_counts[label] += len(np.where(labels == label)[0])
+
+                # Track total loss
+                total_loss += loss.item()
+                step += 1
+
+                # Display loss and accuracy in the progress bar
+                progress_bar.set_postfix(loss=loss.item())
+
+            # Calculate average loss and accuracy per label
+            avg_loss = total_loss / step
             
-    #         if args.ddp:
-    #             reduce_dict(args, label_correct_counts, num_labels)
-    #             reduce_dict(args, label_total_counts, num_labels)
+            dist.barrier()
+            
+            if args.ddp:
+                reduce_dict(args, label_correct_counts, num_labels)
+                reduce_dict(args, label_total_counts, num_labels)
                 
-    #         dist.barrier()
+            dist.barrier()
 
-    #         if (args.ddp and dist.get_rank() == 0) or not args.ddp:
-    #             out = ""
-    #             for label in range(num_labels):
-    #                 if label_total_counts[label] > 0:
-    #                     acc = label_correct_counts[label] / label_total_counts[label]
-    #                     out += f"{round(acc, 4)}    "
-    #                 else:
-    #                     out += "X   "
-    #             logging.info(f"---training accuracy at {epoch} of {subEpoch}--------------------------------------")       
-    #             logging.info(out)
+            if (args.ddp and dist.get_rank() == 0) or not args.ddp:
+                out = ""
+                for label in range(num_labels):
+                    if label_total_counts[label] > 0:
+                        acc = label_correct_counts[label] / label_total_counts[label]
+                        out += f"{round(acc, 4)}    "
+                    else:
+                        out += "X   "
+                    print(label, label_correct_counts[label], label_total_counts[label])
 
-    #         dist.barrier()
+                logging.info(f"---training accuracy at {epoch} of {subEpoch}--------------------------------------")       
+                logging.info(out)
+
+            dist.barrier()
 
 
-    #         # Validation loop
-    #         eval_correct_count = defaultdict(int, {label: 0 for label in range(num_labels)})
-    #         eval_total_count = defaultdict(int, {label: 0 for label in range(num_labels)})
+            # Validation loop
+            eval_correct_count = defaultdict(int, {label: 0 for label in range(num_labels)})
+            eval_total_count = defaultdict(int, {label: 0 for label in range(num_labels)})
 
-    #         if not args.ddp or dist.get_rank() == 0:
-    #             model.module.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch))
+            if not args.ddp or dist.get_rank() == 0:
+                model.module.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch))
 
-    #         model.eval()
+            model.eval()
 
-    #         with torch.no_grad():
-    #             progress_bar = tqdm(eval_dataloader, desc=f"evaluating...")
-    #             for batch in progress_bar:
+            with torch.no_grad():
+                progress_bar = tqdm(eval_dataloader, desc=f"evaluating...")
+                for batch in progress_bar:
                     
-    #                 batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
+                    batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
                     
-    #                 outputs = model(**batch)
-    #                 logits = outputs.logits
+                    outputs = model(**batch)
+                    logits = outputs.logits
                     
-    #                 preds = logits.detach().cpu().numpy()
-    #                 labels = batch["labels"].detach().cpu().numpy()
-    #                 label_accuracies = compute_label_accuracies(preds, labels, num_labels)
+                    preds = logits.detach().cpu().numpy()
+                    labels = batch["labels"].detach().cpu().numpy()
+                    label_accuracies = compute_label_accuracies(preds, labels, num_labels)
                 
-    #                 for label, acc in label_accuracies.items():
-    #                     if acc is not None:
-    #                         eval_correct_count[label] += acc * len(np.where(labels == label)[0])
-    #                         eval_total_count[label] += len(np.where(labels == label)[0])
+                    for label, acc in label_accuracies.items():
+                        if acc is not None:
+                            eval_correct_count[label] += acc * len(np.where(labels == label)[0])
+                            eval_total_count[label] += len(np.where(labels == label)[0])
 
+                dist.barrier()
                             
-    #             if args.ddp:
-    #                 reduce_dict(args, eval_correct_count, num_labels)
-    #                 reduce_dict(args, eval_total_count, num_labels)
+                if args.ddp:
+                    reduce_dict(args, eval_correct_count, num_labels)
+                    reduce_dict(args, eval_total_count, num_labels)
                             
-    #             dist.barrier()
-    #             if (args.ddp and dist.get_rank() == 0) or not args.ddp:
-    #                 out = ""
-    #                 for label in range(num_labels):
-    #                     if eval_total_count[label] > 0:
-    #                         acc = eval_correct_count[label] / eval_total_count[label]
-    #                         out += f"{round(acc, 4)}    "
-    #                     else:
-    #                         out += "X   "
-    #                 logging.info(f"---eval accuracy at {epoch} of {subEpoch}--------------------------------------")        
-    #                 logging.info(out)
+                dist.barrier()
+                if (args.ddp and dist.get_rank() == 0) or not args.ddp:
+                    out = ""
+                    for label in range(num_labels):
+                        if eval_total_count[label] > 0:
+                            acc = eval_correct_count[label] / eval_total_count[label]
+                            out += f"{round(acc, 4)}    "
+                        else:
+                            out += "X   "
+                    
+                        print(label, eval_correct_count[label], eval_total_count[label])
 
-    #             dist.barrier()
+                    logging.info(f"---eval accuracy at {epoch} of {subEpoch}--------------------------------------")        
+                    logging.info(out)
+
+                dist.barrier()
 
 
     
@@ -1113,7 +1138,7 @@ def main(args, config):
 if __name__ == "__main__":
 
     dp = False
-    ddp = False
+    ddp = True
 
     if ddp:
         from torch.nn.parallel import DistributedDataParallel as DDP
