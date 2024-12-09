@@ -3,7 +3,7 @@ from argparse import Namespace
 import pandas as pd, numpy as np
 
 def main(args, config):
-    
+    target = ['JJR', 'WDT']
     state = "None"
     dataset = "Baseline"
     epoch = "0"
@@ -41,15 +41,15 @@ def main(args, config):
             res.index = pd.Index([f"{epoch}_{dataset}"])
             evalRes = pd.concat([evalRes, res], axis = 0)
 
-    others = list(set(trainRes.columns) - set(['JJR', 'WP','MD', "VBP"]))
+    others = list(set(trainRes.columns) - set(target))
     to = trainRes[others].replace("X", np.nan).map(float).mean(axis = 1, skipna=True).round(4)
     to.name = "OHTERS"
     eo = evalRes[others].replace("X", np.nan).map(float).mean(axis = 1, skipna=True).round(4)
     eo.name = "OTHERS"
     print("-------------------------------")
-    print("train", "\n", pd.concat([trainRes[['JJR', 'WP','MD', "VBP"]], to], axis = 1))
+    print("train", "\n", pd.concat([trainRes[target], to], axis = 1))
     print("-------------------------------")
-    print("eval", "\n", pd.concat([evalRes[['JJR', 'WP','MD', "VBP"]], eo], axis = 1))
+    print("eval", "\n", pd.concat([evalRes[target], eo], axis = 1))
     print("-------------------------------")
 
 
