@@ -343,7 +343,7 @@ def _process_chunk4(pos, df):
 
     return {pos: [quant_pos[i] for i in np.arange(0.1, 1.1, 0.1)]}
 
-def tokenize_and_align_labels(examples, args, config, tokenizer):
+def tokenize_and_align_labels(examples, tokenizer, args, config):
     
     tokenized_inputs = tokenizer(examples["text"], truncation=True, padding="max_length", max_length=512, is_split_into_words = True)
     
@@ -465,7 +465,7 @@ def evaluate(args, config, model, eval_dataloader, num_labels, epoch):
             dist.barrier()
 
 
-def train(args, config, model, train_dataloader, num_labels, optimizer, lr_scheduler, epoch):
+def train(args, config, model, train_dataloader, num_labels, optimizer, lr_scheduler, bucket, epoch):
 
 
             model.train()
@@ -477,7 +477,7 @@ def train(args, config, model, train_dataloader, num_labels, optimizer, lr_sched
             label_correct_counts = defaultdict(int, {label: 0 for label in range(num_labels)})
             label_total_counts = defaultdict(int, {label: 0 for label in range(num_labels)})
 
-            for batch in train_dataloader:
+            for batch in tqdm(train_dataloader):
                 
                 if args.ddp:
                     batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
@@ -535,7 +535,7 @@ def train(args, config, model, train_dataloader, num_labels, optimizer, lr_sched
                         out += "X   "
                     print("training,", label, label_correct_counts[label], label_total_counts[label])
 
-                logging.info(f"---training accuracy at {epoch} of {subEpoch}--------------------------------------")       
+                logging.info(f"---training accuracy at {epoch}-------------------------------------")       
                 logging.info(out)
             
             if args.ddp:
@@ -546,9 +546,9 @@ def train(args, config, model, train_dataloader, num_labels, optimizer, lr_sched
             # Validation loop
 
             if args.ddp and dist.get_rank() == 0:
-                model.module.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch, args.lr))
+                model.module.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, bucket, args.lr))
             if not args.ddp:
-                model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch, args.lr))
+                model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, bucket, args.lr))
 
 
 def read_csv_files(i, config):
@@ -937,8 +937,9 @@ def main(args, config):
     
     datasets = {}
     for key, value in dataset_dic.items():
-
+        value.columns = ['text', 'label']
         f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config)
+        value = Dataset.from_pandas(value)
         datasets[key] = value.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
 
     datasets = {key: val.remove_columns("text") for key, val in datasets.items()}
@@ -946,11 +947,11 @@ def main(args, config):
     eval_dataset = datasets[args.bucket]
 
     # Create DataLoaders
-    if ddp:
-        train_dataloader = {key: DataLoader(val, sampler=DistributedSampler(val), batch_size=config['contTrain']['batch_size'], shuffle=False, num_workers = 4, pin_memory = True, collate_fn=debug_collate_fn) for key, val in train_dataset.items()}
+    if args.ddp:
+        train_dataloader = DataLoader(train_dataset, sampler=DistributedSampler(train_dataset), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, shuffle=False, num_workers = 4, pin_memory = True)
         eval_dataloader = DataLoader(eval_dataset, sampler=DistributedSampler(eval_dataset), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
     else:
-        train_dataloader = {key: DataLoader(val, batch_size=config['contTrain']['batch_size'], shuffle=True, collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, ) for key, val in train_dataset.items()}
+        train_dataloader = DataLoader(train_dataset, batch_size=config['contTrain']['batch_size'], shuffle=True, collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
         eval_dataloader = DataLoader(eval_dataset, batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
 
     # Move model to GPU if available
@@ -961,7 +962,7 @@ def main(args, config):
     else:
         model.to(args.device)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay = 0.01)
     torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0) 
 
     num_training_steps = len(train_dataloader) * 100  
@@ -984,19 +985,17 @@ def main(args, config):
             level=logging.INFO
     )
 
-    num_epochs = 100
+    num_epochs = 20
 
 
     # baseline evaluation
     
     
     evaluate(args, config, model, eval_dataloader, num_labels, 0)
-    evaluate(args, config, model, eval_dataloader, num_labels, 0)
     
     for epoch in range(num_epochs):
-        train(args, config, model, train_dataloader, num_labels, optimizer, lr_scheduler, epoch)
+        train(args, config, model, train_dataloader, num_labels, optimizer, lr_scheduler, args.bucket, epoch)
 
-        evaluate(args, config, model, eval_dataloader, num_labels, epoch)
         evaluate(args, config, model, eval_dataloader, num_labels, epoch)
 
     # ############### filter those which have even duplicated tokens

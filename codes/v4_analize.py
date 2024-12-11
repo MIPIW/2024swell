@@ -6,15 +6,14 @@ def get_args(line, state):
 
     t = re.sub("-", "", line.strip()).split(" ")
     epoch = t[t.index("at")+1]
-    dataset = t[t.index("of")+1]
 
-    return epoch, dataset, state
+    return epoch, state
 
-def get_dfs(line, config, epoch, dataset):
+def get_dfs(line, config, epoch):
     res = [i for i in line.strip().split(":")[1].split(" ") if i != ""]
     res = pd.DataFrame(res).T
     res.columns = config['dataStats']['correctXPos']
-    res.index = pd.Index([f"{epoch}_{dataset}"])
+    res.index = pd.Index([f"{epoch}"])
 
     return res
 
@@ -25,9 +24,8 @@ def get_others(res, target):
     return to 
 
 def main(args, config):
-    target = ['JJR', 'WDT']
+    target = ['NN', 'IN']
     state = "None"
-    dataset = "Baseline"
     epoch = "0"
 
     trainRes = pd.DataFrame(columns = config['dataStats']['correctXPos'])
@@ -35,51 +33,33 @@ def main(args, config):
     evalResOOD = pd.DataFrame(columns = config['dataStats']['correctXPos'])
     evalResTd = pd.DataFrame(columns = config['dataStats']['correctXPos'])
     
-    with open(config['analysis2'], "r") as f:
+    with open(config['analysis'], "r") as f:
         x = f.readlines()
     
     for line in x:
         if "eval" in line:
-            if "id" in line:
-                epoch, dataset, state = get_args(line, "eval_id")
-                continue
-            if "ood" in line:
-                epoch, dataset, state = get_args(line, "eval_ood")
-                
-                continue
-            if "td" in line:
-                epoch, dataset, state = get_args(line, "eval_td")
-                continue
+            epoch, state = get_args(line, "eval")
+            continue
         elif "train" in line:
-            epoch, dataset, state = get_args(line, "train")
+            epoch, state = get_args(line, "train")
             
             continue
         else:
             pass
 
-        res = get_dfs(line, config, epoch, dataset)
+        res = get_dfs(line, config, epoch)
         if state == "train":
             trainRes = pd.concat([trainRes, res], axis = 0)
-        elif state == "eval_id":
+        elif state == "eval":
             evalResId = pd.concat([evalResId, res], axis = 0)
-        elif state == "eval_ood":
-            evalResOOD = pd.concat([evalResOOD, res], axis = 0)
-        elif state == "eval_td":
-            evalResTd = pd.concat([evalResTd, res], axis = 0)
 
     to = get_others(trainRes, target)
     eo = get_others(evalResId, target)
-    eoo = get_others(evalResOOD, target)
-    et = get_others(evalResTd, target)
     
     print("-------------------------------")
     print("train", "\n", pd.concat([trainRes[target], to], axis = 1))
     print("-------------------------------")
     print("eval id", "\n", pd.concat([evalResId[target], eo], axis = 1))
-    print("-------------------------------")
-    print("eval ood", "\n", pd.concat([evalResOOD[target], eoo], axis = 1))
-    print("-------------------------------")
-    print("eval td", "\n", pd.concat([evalResTd[target], et], axis = 1))
     print("-------------------------------")
 
 
@@ -91,7 +71,7 @@ if __name__ == "__main__":
     args = Namespace(
         # yaml_path = "/home/hyohyeongjang/2024SWELL/codes/v2_config.yaml",
         # yaml_path = "/home/hyohyeongjang/2024SWELL/codes/v3_config.yaml",
-        yaml_path = "/home/hyohyeongjang/2024SWELL/codes/v4_config.yaml",
+        yaml_path = "/home/hyohyeongjang/2024SWELL/codes/v5_config.yaml",
     )
     
     with open(args.yaml_path, 'r') as file:
