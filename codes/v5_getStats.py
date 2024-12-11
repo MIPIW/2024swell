@@ -412,7 +412,7 @@ def reduce_dict(args, counts_dict, num_labels):
         dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
         counts_dict[label] = tensor.item()
 
-def evaluate(args, config, model, eval_dataloader, num_labels, epoch):
+def evaluate(args, config, model, eval_dataloader, num_labels, epoch, subEpoch):
     model.eval()
 
     with torch.no_grad():
@@ -458,14 +458,14 @@ def evaluate(args, config, model, eval_dataloader, num_labels, epoch):
                 
                 print(f"evaluate", label, eval_correct_count[label], eval_total_count[label])
 
-            logging.info(f"--- eval accuracy at {epoch} --------------------------------------")        
+            logging.info(f"--- eval accuracy on {subEpoch} at {epoch} --------------------------------------")        
             logging.info(out)
         
         if args.ddp:
             dist.barrier()
 
 
-def train(args, config, model, train_dataloader, num_labels, optimizer, lr_scheduler, bucket, epoch):
+def train(args, config, model, train_dataloader, num_labels, optimizer, lr_scheduler, bucket, epoch, subEpoch):
 
 
             model.train()
@@ -535,7 +535,7 @@ def train(args, config, model, train_dataloader, num_labels, optimizer, lr_sched
                         out += "X   "
                     print("training,", label, label_correct_counts[label], label_total_counts[label])
 
-                logging.info(f"---training accuracy at {epoch}-------------------------------------")       
+                logging.info(f"---training accuracy on {subEpoch} at {epoch}-------------------------------------")       
                 logging.info(out)
             
             if args.ddp:
@@ -787,6 +787,8 @@ def main(args, config):
     # pd.DataFrame.from_dict(u_lowQ, orient = "index").to_csv(config['dataStats']['otherPosQuantilesLowUnique'])
     # pd.DataFrame.from_dict(u_highQ, orient = "index").to_csv(config['dataStats']['otherPosQuantilesHighUnique'])
    ############ filter those which have even tokens
+    NUM_SUBBUCKET = 50
+    NUM_BUCKET = 5
 
     # def balanced_grouping(df, num_groups=5):
     #     """
@@ -805,7 +807,7 @@ def main(args, config):
     #     df['group'] = df.index % num_groups
 
     #     # 그룹별 pos1, pos2 합계를 균등하게 맞추기 위해 반복 조정
-    #     for _ in tqdm(range(1000)):  # 최대 100번 반복
+    #     for _ in tqdm(range(100)):  # 최대 100번 반복
     #         group_sums = df.groupby('group')[['pos1', 'pos2']].sum()
 
     #         # 그룹 간 pos1과 pos2 합계의 차이 계산
@@ -820,9 +822,9 @@ def main(args, config):
     #         rows_to_remove = []
     #         for group in df['group'].unique():
     #             group_df = df[df['group'] == group].copy()
-    #             if len(group_df) > 40000:
+    #             if len(group_df) > 5000:
     #                 group_df.loc[:, 'diff'] = group_df['pos2'] - group_df['pos1']
-    #                 max_diff_rows = group_df.nlargest(1000, 'diff')
+    #                 max_diff_rows = group_df.nlargest(2000, 'diff')
     #                 rows_to_remove.extend(max_diff_rows.index)
 
     #         # 찾은 row들을 제거
@@ -836,9 +838,6 @@ def main(args, config):
     #     print(df.groupby('group').count())
     #     return df, group_totals
 
-
-    # FULL_POS = config['dataStats']['correctXPosNoSym']
-    
 
     # # Read files in parallel using multiprocessing
     # with Pool() as pool:
@@ -860,7 +859,7 @@ def main(args, config):
     # # pos_normal = pos_normal.sample(n = 45000, random_state= 42)
     # pos_normal.columns = ["pos1", "pos2"]
 
-    # grouped_df, group_totals = balanced_grouping(pos_normal)
+    # grouped_df, group_totals = balanced_grouping(pos_normal, num_groups=NUM_SUBBUCKET)
     # print(group_totals)
 
     # with open(config['contFiles']['data_CT'].format("groups"), "wb") as f:
@@ -873,8 +872,8 @@ def main(args, config):
     # ############# extract data by idx
     # tot_former = 0
     
-    # for i in [0]:
-
+    # for i in tqdm(range(10)):
+        
     #     with open(config['originalData']['raw_CT']+f"_{i}_process_d2.pk", "rb") as f:
     #         sent_lower = pickle.load(f)
     #         sent_lower = pd.Series(sent_lower)
@@ -888,11 +887,9 @@ def main(args, config):
 
     #     print(sent_lower.head(), sent_pos.head(), len(sent_lower), len(sent_pos))
         
-    #     for bucket in [0]:
+    #     for bucket in tqdm(range(NUM_SUBBUCKET)):
     #         sample_idx = grouped_df.loc[grouped_df['group'] == bucket].index   
-    #         print(sample_idx)         
-    #         sample_idx = sample_idx[(sample_idx > tot_former) & (sample_idx < (tot_former + len(sent_lower)))]
-    #         print(sample_idx)
+    #         sample_idx = sample_idx[(sample_idx >= tot_former) & (sample_idx < (tot_former + len(sent_lower)))]
             
     #         sent = sent_lower.loc[sample_idx]
     #         pos = sent_pos.loc[sample_idx]
@@ -901,8 +898,9 @@ def main(args, config):
     #             pickle.dump([sent, pos], f)
 
     #     tot_former += len(sent_lower)
+
     # dataset_dic = {}
-    # for bucket in range(5):
+    # for bucket in range(NUM_SUBBUCKET):
     #     text = pd.Series()
     #     label = pd.Series()
     
@@ -917,15 +915,16 @@ def main(args, config):
                 
             
     #     dataset_dic[bucket] = pd.concat([text, label], axis = 1)
-    #     print(dataset_dic[bucket])
 
     # with open(config['contFiles']['train_dataset_CT'], "wb") as f:
     #     pickle.dump(dataset_dic, f)
 
 
-    ## train model
+    # train model
     
-    
+    NUM_EVAL_BUCKET = 10
+    num_epochs = 20
+    num_subEpoch = NUM_SUBBUCKET - NUM_EVAL_BUCKET
 
     model_name = "FacebookAI/roberta-base"
     num_labels = 39  # Number of classes for token classification
@@ -935,27 +934,28 @@ def main(args, config):
     with open(config['contFiles']['train_dataset_CT'], "rb") as f:
         dataset_dic = pickle.load(f)
     
+    print("tokenizing datasets...")
     datasets = {}
-    for key, value in dataset_dic.items():
+    for key, value in tqdm(dataset_dic.items()):
         value.columns = ['text', 'label']
         f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config)
         value = Dataset.from_pandas(value)
-        datasets[key] = value.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
+        datasets[key] = value.map(f, batched=True, num_proc = config['contTrain']['num_cores_train']).remove_columns("text")
 
-    datasets = {key: val.remove_columns("text") for key, val in datasets.items()}
-    train_dataset = concatenate_datasets([datasets[i] for i in range(0,5) if i != args.bucket])
-    eval_dataset = datasets[args.bucket]
+    eval_range = list(range(args.bucket * NUM_EVAL_BUCKET, (args.bucket + 1) * NUM_EVAL_BUCKET))
+    train_range = [i for i in range(NUM_SUBBUCKET) if i not in eval_range]
+    train_dataset = {key: value for key, value in datasets if key not in eval_range}
+    eval_dataset = concatenate_datasets([value for key, value in datasets.items() if key in eval_range])
 
-    # Create DataLoaders
+        # Create DataLoaders
     if args.ddp:
-        train_dataloader = DataLoader(train_dataset, sampler=DistributedSampler(train_dataset), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, shuffle=False, num_workers = 4, pin_memory = True)
+        train_dataloader = {key: DataLoader(val, sampler=DistributedSampler(val), batch_size=config['contTrain']['batch_size'], shuffle=False, num_workers = 4, pin_memory = True, collate_fn=debug_collate_fn) for key, val in train_dataset.items()}
         eval_dataloader = DataLoader(eval_dataset, sampler=DistributedSampler(eval_dataset), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
     else:
-        train_dataloader = DataLoader(train_dataset, batch_size=config['contTrain']['batch_size'], shuffle=True, collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
+        train_dataloader = {key: DataLoader(val, batch_size=config['contTrain']['batch_size'], shuffle=True, collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, ) for key, val in train_dataset.items()}
         eval_dataloader = DataLoader(eval_dataset, batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
 
     # Move model to GPU if available
-    
     if args.ddp:
         model.to(args.local_rank)
         model = DDP(model, device_ids=[args.local_rank])
@@ -965,7 +965,7 @@ def main(args, config):
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay = 0.01)
     torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0) 
 
-    num_training_steps = len(train_dataloader) * 100  
+    num_training_steps = sum([len(i) for i in train_dataloader]) * num_epochs  
     lr_scheduler = get_scheduler(
         name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
     )
@@ -985,57 +985,20 @@ def main(args, config):
             level=logging.INFO
     )
 
-    num_epochs = 20
 
 
     # baseline evaluation
     
     
-    evaluate(args, config, model, eval_dataloader, num_labels, 0)
+    evaluate(args, config, model, eval_dataloader, num_labels, 0, 'base')
     
     for epoch in range(num_epochs):
-        train(args, config, model, train_dataloader, num_labels, optimizer, lr_scheduler, args.bucket, epoch)
 
-        evaluate(args, config, model, eval_dataloader, num_labels, epoch)
+        for e, subEpoch in enumerate(train_range):
 
-    # ############### filter those which have even duplicated tokens
-    # FULL_POS = config['dataStats']['correctXPosNoSym']
-    # # comparative adjective, wh determiner, gerund or present participle, prersonal pronoun
-    # # respectively LL, LH, HL, HH
-    # pos_normal = pd.DataFrame(columns=FULL_POS)
-    # pos_unique = pd.DataFrame(columns=FULL_POS)
+            train(args, config, model, train_dataloader[subEpoch], num_labels, optimizer, lr_scheduler, args.bucket, epoch, e)
 
-    # for i in tqdm(range(2)):
-    #     df_normal_count = pd.read_csv(config['dataStats']['pos_freq_CT']+f"_{i}_normal.csv")
-    #     df_unique_count = pd.read_csv(config['dataStats']['pos_freq_CT']+f"_{i}_unique.csv")
-
-    #     pos_normal = pd.concat([pos_normal, df_normal_count], axis = 0).reset_index(drop = True)
-    #     pos_unique = pd.concat([pos_unique, df_unique_count], axis = 0).reset_index(drop = True)
-
-
-    # lowQ = {}
-    # highQ = {}
-    # for pos in FINAL_TARGET_POS:
-    #     # target_low_off = pos_normal[pos].map(lambda x: ranges[0][0] <= x <= ranges[0][1] )
-    #     target_low_idx = pos_normal[pos].map(lambda x: FINAL_RANGE[1][0] <= x <= FINAL_RANGE[1][1] )
-    #     target_high_idx = pos_normal[pos].map(lambda x: FINAL_RANGE[2][0] <= x <= FINAL_RANGE[2][1] )
-    #     # target_high_off = pos_normal[pos].map(lambda x: ranges[3][0] <= x <= ranges[3][1] )
-        
-    #     target_low = pos_normal[target_low_idx]
-    #     target_high = pos_normal[target_high_idx]
-    #     target_low_noPos = target_low.drop(columns = pos, inplace = False)
-    #     target_high_noPos = target_high.drop(columns = pos, inplace = False)
-
-    #     stdLow = target_low_noPos.std(axis = 0)
-    #     stdHigh = target_high_noPos.std(axis = 0)
-
-    #     lowQ[pos] = stdLow.quantile(np.arange(0.1, 1.1, 0.1)), 
-    #     highQ[pos] = stdHigh.quantile(np.arange(0.1, 1.1, 0.1))
-
-    # pd.DataFrame.from_dict(lowQ, orient = "index").to_csv(config['dataStats']['otherPosQuantilesLow'])
-    # pd.DataFrame.from_dict(highQ, orient = "index").to_csv(config['dataStats']['otherPosQuantilesHigh'])
-
-        
+            evaluate(args, config, model, eval_dataloader, num_labels, epoch, e)
 
 
 
