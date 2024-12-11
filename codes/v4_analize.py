@@ -8,17 +8,27 @@ def main(args, config):
     dataset = "Baseline"
     epoch = "0"
     trainRes = pd.DataFrame(columns = config['dataStats']['correctXPos'])
-    evalRes = pd.DataFrame()
+    evalResId = pd.DataFrame(columns = config['dataStats']['correctXPos'])
+    evalResOOD = pd.DataFrame(columns = config['dataStats']['correctXPos'])
+
     with open(config['analysis'], "r") as f:
         x = f.readlines()
     
     for line in x:
         if "eval" in line:
-            state = "eval"
-            t = re.sub("-", "", line.strip()).split(" ")
-            epoch = t[t.index("at")+1]
-            dataset = t[t.index("of")+1]
-            continue
+            if "id" in line:
+                state = "eval_id"
+                t = re.sub("-", "", line.strip()).split(" ")
+                epoch = t[t.index("at")+1]
+                dataset = t[t.index("of")+1]
+                continue
+            if "ood" in line:
+                state = "eval_ood"
+                t = re.sub("-", "", line.strip()).split(" ")
+                epoch = t[t.index("at")+1]
+                dataset = t[t.index("of")+1]
+                continue
+
         elif "train" in line:
             t = re.sub("-", "", line.strip()).split(" ")
             epoch = t[t.index("at")+1]
@@ -34,22 +44,34 @@ def main(args, config):
             res.columns = config['dataStats']['correctXPos']
             res.index = pd.Index([f"{epoch}_{dataset}"])
             trainRes = pd.concat([trainRes, res], axis = 0)
-        elif state == "eval":
+        elif state == "eval_id":
             res = [i for i in line.strip().split(":")[1].split(" ") if i != ""]
             res = pd.DataFrame(res).T
             res.columns = config['dataStats']['correctXPos']
             res.index = pd.Index([f"{epoch}_{dataset}"])
-            evalRes = pd.concat([evalRes, res], axis = 0)
+            evalResId = pd.concat([evalResId, res], axis = 0)
+        elif state == "eval_ood":
+            res = [i for i in line.strip().split(":")[1].split(" ") if i != ""]
+            res = pd.DataFrame(res).T
+            res.columns = config['dataStats']['correctXPos']
+            res.index = pd.Index([f"{epoch}_{dataset}"])
+            evalResOOD = pd.concat([evalResOOD, res], axis = 0)
+
 
     others = list(set(trainRes.columns) - set(target))
     to = trainRes[others].replace("X", np.nan).map(float).mean(axis = 1, skipna=True).round(4)
     to.name = "OHTERS"
-    eo = evalRes[others].replace("X", np.nan).map(float).mean(axis = 1, skipna=True).round(4)
+    eo = evalResId[others].replace("X", np.nan).map(float).mean(axis = 1, skipna=True).round(4)
     eo.name = "OTHERS"
+    eoo = evalResOOD[others].replace("X", np.nan).map(float).mean(axis = 1, skipna=True).round(4)
+    eoo.name = "OTHERS"
+
     print("-------------------------------")
     print("train", "\n", pd.concat([trainRes[target], to], axis = 1))
     print("-------------------------------")
-    print("eval", "\n", pd.concat([evalRes[target], eo], axis = 1))
+    print("eval id", "\n", pd.concat([evalResId[target], eo], axis = 1))
+    print("-------------------------------")
+    print("eval ood", "\n", pd.concat([evalResOOD[target], eoo], axis = 1))
     print("-------------------------------")
 
 

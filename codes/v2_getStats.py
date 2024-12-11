@@ -400,7 +400,11 @@ def compute_label_accuracies(preds, labels, num_labels):
 
 def reduce_dict(args, counts_dict, num_labels):
     for label in range(num_labels):
-        tensor = torch.tensor(counts_dict[label], dtype=torch.float32).to(args.local_rank)
+        if args.ddp:
+            tensor = torch.tensor(counts_dict[label], dtype=torch.float32).to(args.local_rank)
+        else:
+            tensor = torch.tensor(counts_dict[label], dtype=torch.float32).to(args.device)
+
         dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
         counts_dict[label] = tensor.item()
 
@@ -783,346 +787,375 @@ def main(args, config):
 
 
 
-    train_dataset_dic = {}
-    eval_dataset_dic = {}
-    eval_dataset_df = pd.DataFrame(columns = ['text', 'label'])
+    # train_dataset_dic = {}
+    # eval_dataset_dic = {}
+    # eval_dataset_df = pd.DataFrame(columns = ['text', 'label'])
 
-    for lowHigh in ['low', 'high']:
-        for pos in tqdm(FINAL_TARGET_POS):    
+    # for lowHigh in ['low', 'high']:
+    #     for pos in tqdm(FINAL_TARGET_POS):    
             
-            serData = pd.Series()
-            serLabel = pd.Series()
-            serEvaldata = pd.Series()
-            serEvalLabel = pd.Series()
+    #         serData = pd.Series()
+    #         serLabel = pd.Series()
+    #         serEvaldata = pd.Series()
+    #         serEvalLabel = pd.Series()
 
-            for i in range(10):
-                with open(config['contFiles']['data_CT_str'].format(i, pos, lowHigh), "rb") as f:
-                    data, label, eval_data, eval_label = pickle.load(f)
+    #         for i in range(10):
+    #             with open(config['contFiles']['data_CT_str'].format(i, pos, lowHigh), "rb") as f:
+    #                 data, label, eval_data, eval_label = pickle.load(f)
                     
-                serData = pd.concat([serData, data], ignore_index = True)
-                serLabel = pd.concat([serLabel, label], ignore_index = True)
-                serEvaldata = pd.concat([serEvaldata, eval_data], ignore_index = True)
-                serEvalLabel = pd.concat([serEvalLabel, eval_label], ignore_index = True)
+    #             serData = pd.concat([serData, data], ignore_index = True)
+    #             serLabel = pd.concat([serLabel, label], ignore_index = True)
+    #             serEvaldata = pd.concat([serEvaldata, eval_data], ignore_index = True)
+    #             serEvalLabel = pd.concat([serEvalLabel, eval_label], ignore_index = True)
         
-            serData = serData.reset_index(drop = True)
-            serLabel = serLabel.reset_index(drop = True)
-            serEvaldata = serEvaldata.reset_index(drop = True)
-            serEvalLabel = serEvalLabel.reset_index(drop = True)
+    #         serData = serData.reset_index(drop = True)
+    #         serLabel = serLabel.reset_index(drop = True)
+    #         serEvaldata = serEvaldata.reset_index(drop = True)
+    #         serEvalLabel = serEvalLabel.reset_index(drop = True)
 
-            data = pd.concat([serData, serLabel], axis = 1)
-            eval_data = pd.concat([serEvaldata, serEvalLabel], axis = 1)
-            data.columns = ['text', 'label']
-            eval_data.columns = ['text', 'label']
+    #         data = pd.concat([serData, serLabel], axis = 1)
+    #         eval_data = pd.concat([serEvaldata, serEvalLabel], axis = 1)
+    #         data.columns = ['text', 'label']
+    #         eval_data.columns = ['text', 'label']
 
-            train_data = data.sample(n = min(50000, len(data)), random_state=42)
-            eval_data = eval_data.sample(n = min(50000, len(eval_data)), random_state=42)
+    #         train_data = data.sample(n = min(50000, len(data)), random_state=42)
+    #         eval_data = eval_data.sample(n = min(50000, len(eval_data)), random_state=42)
             
-            train_dataset_dic[f"{pos}_{lowHigh}"] = train_data.reset_index(drop = True)
-            eval_dataset_dic[f"{pos}_{lowHigh}"] = eval_data.reset_index(drop = True)
+    #         train_dataset_dic[f"{pos}_{lowHigh}"] = train_data.reset_index(drop = True)
+    #         eval_dataset_dic[f"{pos}_{lowHigh}"] = eval_data.reset_index(drop = True)
     
 
 
         
-    IDed = pd.DataFrame(columns = ["text", 'label'])
-    OODed = pd.DataFrame(columns= ['text', 'label'])
+    # IDed = pd.DataFrame(columns = ["text", 'label'])
+    # OODed = pd.DataFrame(columns= ['text', 'label'])
 
-    for pos in tqdm(FINAL_TARGET_POS):   
-        d1 = train_dataset_dic[f"{pos}_low"]
-        d2 = train_dataset_dic[f"{pos}_high"]
+    # for pos in tqdm(FINAL_TARGET_POS):   
+    #     d1 = train_dataset_dic[f"{pos}_low"]
+    #     d2 = train_dataset_dic[f"{pos}_high"]
 
-        sampledD1 = d1.sample(n = 16384, random_state = 42).reset_index(drop = True)        
-        posSerD1 = sampledD1.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
-        posSetD1 = set(posSerD1.explode().drop_duplicates().to_list())
+    #     sampledD1 = d1.sample(n = 16384, random_state = 42).reset_index(drop = True)        
+    #     posSerD1 = sampledD1.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
+    #     posSetD1 = set(posSerD1.explode().drop_duplicates().to_list())
         
-        posSerD2 = d2.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
-        d2BothIdx = posSerD2.map(lambda x : all([i in posSetD1 for i in x]))
-        sampledD2 = d2[d2BothIdx].sample(n = 16384, random_state = 42).reset_index(drop = True)
+    #     posSerD2 = d2.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
+    #     d2BothIdx = posSerD2.map(lambda x : all([i in posSetD1 for i in x]))
+    #     sampledD2 = d2[d2BothIdx].sample(n = 16384, random_state = 42).reset_index(drop = True)
 
-        t2 = sampledD2.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
-        t2 = set(t2.explode().drop_duplicates().to_list())
+    #     t2 = sampledD2.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
+    #     t2 = set(t2.explode().drop_duplicates().to_list())
         
-        print(len(posSetD1), len(t2), len(posSetD1 - t2), len(t2 - posSetD1))
+    #     print(len(posSetD1), len(t2), len(posSetD1 - t2), len(t2 - posSetD1))
 
-        ed1 = eval_dataset_dic[f"{pos}_low"]
-        ed2 = eval_dataset_dic[f"{pos}_high"]
+    #     ed1 = eval_dataset_dic[f"{pos}_low"]
+    #     ed2 = eval_dataset_dic[f"{pos}_high"]
 
-        posSerEd1 = ed1.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
-        posSerEd2 = ed2.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
-        ed1BothIdx = posSerEd1.map(lambda x : all([i in posSetD1 for i in x]))
-        ed2BothIdx = posSerEd2.map(lambda x : all([i in posSetD1 for i in x]))
+    #     posSerEd1 = ed1.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
+    #     posSerEd2 = ed2.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
+    #     ed1BothIdx = posSerEd1.map(lambda x : all([i in posSetD1 for i in x]))
+    #     ed2BothIdx = posSerEd2.map(lambda x : all([i in posSetD1 for i in x]))
 
-        IDEd1 = ed1[ed1BothIdx].sample(n = min(16384, ed1BothIdx.sum())).reset_index(drop = True)
-        OODEd1 = ed1[~ed1BothIdx].sample(n = min(16384, (~ed1BothIdx).sum())).reset_index(drop = True)
-        IDEd2 = ed2[ed2BothIdx].sample(n = min(16384, ed2BothIdx.sum())).reset_index(drop = True)
-        OODEd2 = ed2[~ed2BothIdx].sample(n = min(16384, (~ed2BothIdx).sum())).reset_index(drop = True)
+    #     IDEd1 = ed1[ed1BothIdx].sample(n = min(16384, ed1BothIdx.sum())).reset_index(drop = True)
+    #     OODEd1 = ed1[~ed1BothIdx].sample(n = min(16384, (~ed1BothIdx).sum())).reset_index(drop = True)
+    #     IDEd2 = ed2[ed2BothIdx].sample(n = min(16384, ed2BothIdx.sum())).reset_index(drop = True)
+    #     OODEd2 = ed2[~ed2BothIdx].sample(n = min(16384, (~ed2BothIdx).sum())).reset_index(drop = True)
 
-        IDedTemp = pd.concat([IDEd1, IDEd2], axis = 0)
-        OODedTemp = pd.concat([OODEd1, OODEd2], axis = 0)
+    #     IDedTemp = pd.concat([IDEd1, IDEd2], axis = 0)
+    #     OODedTemp = pd.concat([OODEd1, OODEd2], axis = 0)
 
-        print(len(ed1), len(IDEd1), len(OODEd1))
-        print(len(ed2), len(IDEd2), len(OODEd2))
+    #     print(len(ed1), len(IDEd1), len(OODEd1))
+    #     print(len(ed2), len(IDEd2), len(OODEd2))
 
 
-        IDed = pd.concat([IDed, IDedTemp], axis = 0)
-        OODed = pd.concat([OODed, OODedTemp], axis = 0)
+    #     IDed = pd.concat([IDed, IDedTemp], axis = 0)
+    #     OODed = pd.concat([OODed, OODedTemp], axis = 0)
 
-    eval_dataset_id = Dataset.from_pandas(IDed.reset_index(drop = True))
-    eval_dataset_od = Dataset.from_pandas(OODed.reset_index(drop = True))
+    # eval_dataset_id = Dataset.from_pandas(IDed.reset_index(drop = True))
+    # eval_dataset_od = Dataset.from_pandas(OODed.reset_index(drop = True))
 
-    for key in train_dataset_dic:
-        train_dataset_dic[key] = Dataset.from_pandas(train_dataset_dic[key])
+    # for key in train_dataset_dic:
+    #     train_dataset_dic[key] = Dataset.from_pandas(train_dataset_dic[key])
      
-    with open(config['contFiles']['train_dataset_CT'], "wb") as f:
-        pickle.dump(train_dataset_dic, f)
+    # with open(config['contFiles']['train_dataset_CT'], "wb") as f:
+    #     pickle.dump(train_dataset_dic, f)
 
-    with open(config['contFiles']['eval_dataset_CT'], "wb") as f:
-        pickle.dump([eval_dataset_id, eval_dataset_od], f)
+    # with open(config['contFiles']['eval_dataset_CT'], "wb") as f:
+    #     pickle.dump([eval_dataset_id, eval_dataset_od], f)
     
 
-    # ## train model
-    # model_name = "FacebookAI/roberta-base"
-    # num_labels = 39  # Number of classes for token classification
-    # tokenizer = AutoTokenizer.from_pretrained(model_name, add_prefix_space=True)
-    # model = AutoModelForTokenClassification.from_pretrained(model_name, num_labels=num_labels)
-    # model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(0, "base"))
+    ## train model
+    model_name = "FacebookAI/roberta-base"
+    num_labels = 39  # Number of classes for token classification
+    tokenizer = AutoTokenizer.from_pretrained(model_name, add_prefix_space=True)
+    model = AutoModelForTokenClassification.from_pretrained(model_name, num_labels=num_labels)
+    model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(0, "base"))
 
-    # with open(config['contFiles']['train_dataset_CT'], "rb") as f:
-    #     train_dataset_dic = pickle.load(f)
+    with open(config['contFiles']['train_dataset_CT'], "rb") as f:
+        train_dataset_dic = pickle.load(f)
 
-    # with open(config['contFiles']['eval_dataset_CT'], "rb") as f:
-    #     eval_dataset_id, eval_dataset_od = pickle.load(f)
+    with open(config['contFiles']['eval_dataset_CT'], "rb") as f:
+        eval_dataset_id, eval_dataset_od = pickle.load(f)
 
-    # train_dataset = {}
-    # for key, value in train_dataset_dic.items():
-    #     pos = key.split("_")[0]
-    #     unPos_idx = [item for item in FINAL_TARGET_POS if item != pos]
-    #     unPos_idx = [config['dataStats']['labelToId'][i] for i in unPos_idx]
+    train_dataset = {}
+    for key, value in train_dataset_dic.items():
+        pos = key.split("_")[0]
+        unPos_idx = [item for item in FINAL_TARGET_POS if item != pos]
+        unPos_idx = [config['dataStats']['labelToId'][i] for i in unPos_idx]
 
-    #     f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = None, pos_idx = config['dataStats']['labelToId'][pos])
-    #     train_dataset[key] = value.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
+        f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = None, pos_idx = config['dataStats']['labelToId'][pos])
+        train_dataset[key] = value.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
 
-    # train_dataset = {key: val.remove_columns("text") for key, val in train_dataset.items()}
+    train_dataset = {key: val.remove_columns("text") for key, val in train_dataset.items()}
 
-    # f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = None, pos_idx = None)
-    # eval_dataset = eval_dataset.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
-    # eval_dataset = eval_dataset.remove_columns('text')
+    f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = None, pos_idx = None)
+    eval_dataset_id = eval_dataset_id.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
+    eval_dataset_id = eval_dataset_id.remove_columns('text')
+    eval_dataset_od = eval_dataset_od.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
+    eval_dataset_od = eval_dataset_od.remove_columns('text')
         
-    #     # Create DataLoaders
-    # if ddp:
-    #     train_dataloader = {key: DataLoader(val, sampler=DistributedSampler(val), batch_size=config['contTrain']['batch_size'], shuffle=False, collate_fn=debug_collate_fn) for key, val in train_dataset.items()}
-    #     eval_dataloader = DataLoader(eval_dataset, sampler=DistributedSampler(eval_dataset), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn)
-    # else:
-    #     train_dataloader = {key: DataLoader(val, batch_size=config['contTrain']['batch_size'], shuffle=True, collate_fn=debug_collate_fn) for key, val in train_dataset.items()}
-    #     eval_dataloader = DataLoader(eval_dataset, batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn)
+        # Create DataLoaders
+    if ddp:
+        train_dataloader = {key: DataLoader(val, sampler=DistributedSampler(val), batch_size=config['contTrain']['batch_size'], shuffle=False, num_workers = 4, pin_memory = True, collate_fn=debug_collate_fn) for key, val in train_dataset.items()}
+        eval_dataloader_id = DataLoader(eval_dataset_id, sampler=DistributedSampler(eval_dataset_id), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
+        eval_dataloader_od = DataLoader(eval_dataset_od, sampler=DistributedSampler(eval_dataset_od), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
+    else:
+        train_dataloader = {key: DataLoader(val, batch_size=config['contTrain']['batch_size'], shuffle=True, collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, ) for key, val in train_dataset.items()}
+        eval_dataloader_id = DataLoader(eval_dataset_id, batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
+        eval_dataloader_od = DataLoader(eval_dataset_od, batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
 
-    # # Move model to GPU if available
-    # model.to(args.local_rank)
+    # Move model to GPU if available
     
-    # if args.ddp:
-    #     model = DDP(model, device_ids=[args.local_rank])
+    if args.ddp:
+        model.to(args.local_rank)
+        model = DDP(model, device_ids=[args.local_rank])
+    else:
+        model.to(args.device)
 
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
-    # num_training_steps = sum([len(i) for i in train_dataloader]) * 10  # Assuming 3 epochs
-    # lr_scheduler = get_scheduler(
-    #     name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
-    # )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0) 
 
-    # if args.ddp and dist.get_rank() == 0:
-    #     logging.basicConfig(
-    #         filename="trainingSteps.log", 
-    #         format='%(asctime)s %(levelname)s:%(message)s',
-    #         datefmt='%Y%m%d %H%M%S',
-    #         level=logging.INFO
-    #     )
-    # elif not args.ddp:
-    #     logging.basicConfig(
-    #         filename="trainingSteps.log", 
-    #         format='%(asctime)s %(levelname)s:%(message)s',
-    #         datefmt='%Y%m%d %H%M%S',
-    #         level=logging.INFO
-    # )
+    num_training_steps = sum([len(i) for i in train_dataloader]) * 10  # Assuming 3 epochs
+    lr_scheduler = get_scheduler(
+        name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
+    )
 
-    # num_epochs = 10
+    if args.ddp and dist.get_rank() == 0:
+        logging.basicConfig(
+            filename=f"trainingSteps_{args.lr}.log", 
+            format='%(asctime)s %(levelname)s:%(message)s',
+            datefmt='%Y%m%d %H%M%S',
+            level=logging.INFO
+        )
+    elif not args.ddp:
+        logging.basicConfig(
+            filename=f"trainingSteps_{args.lr}.log", 
+            format='%(asctime)s %(levelname)s:%(message)s',
+            datefmt='%Y%m%d %H%M%S',
+            level=logging.INFO
+    )
+
+    num_epochs = 2
 
 
-    # # baseline evaluation
-    # eval_correct_count = defaultdict(int, {label: 0 for label in range(num_labels)})
-    # eval_total_count = defaultdict(int, {label: 0 for label in range(num_labels)})
-
-    # model.eval()
-
-    # with torch.no_grad():
-    #     progress_bar = tqdm(eval_dataloader, desc=f"evaluating...")
-
-    #     for batch in progress_bar:
-            
-    #         batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
-            
-    #         outputs = model(**batch)
-    #         logits = outputs.logits
-            
-    #         preds = logits.detach().cpu().numpy()
-    #         labels = batch["labels"].detach().cpu().numpy()
-    #         label_accuracies = compute_label_accuracies(preds, labels, num_labels)
-        
-    #         for label, acc in label_accuracies.items():
-    #             if acc is not None:
-    #                 eval_correct_count[label] += acc * len(np.where(labels == label)[0])
-    #                 eval_total_count[label] += len(np.where(labels == label)[0])
-        
-    #     dist.barrier()
-
-    #     if args.ddp:
-    #         reduce_dict(args, eval_correct_count, num_labels)
-    #         reduce_dict(args, eval_total_count, num_labels)
-
-    #     dist.barrier()
-    #     if (args.ddp and dist.get_rank() == 0) or not args.ddp:
-    #         print("i will write this!")
-    #         out = ""
-    #         for label in range(num_labels):
-    #             if eval_total_count[label] > 0:
-    #                 acc = eval_correct_count[label] / eval_total_count[label]
-    #                 out += f"{round(acc, 4)}    "
-    #             else:
-    #                 out += "X   "
-                
-    #             print(label, eval_correct_count[label], eval_total_count[label])
-
-    #         logging.info("---eval accuracy at 0 of base--------------------------------------")        
-    #         logging.info(out)
-        
-    #     dist.barrier()
+    # baseline evaluation
     
 
-    # for epoch in range(num_epochs):
+    model.eval()
 
-    #     for e, subEpoch in enumerate([f"{i}_low" for i in FINAL_TARGET_POS] + [f"{i}_high" for i in FINAL_TARGET_POS]):
-    #         print(subEpoch)
+    with torch.no_grad():
+        for dltype, eval_dataloader in zip(['id', 'ood'], [eval_dataloader_id, eval_dataloader_od]):
+            eval_correct_count = defaultdict(int, {label: 0 for label in range(num_labels)})
+            eval_total_count = defaultdict(int, {label: 0 for label in range(num_labels)})
 
-    #         model.train()
-    #         if args.ddp:
-    #             train_dataloader[subEpoch].sampler.set_epoch(epoch)
-    #         progress_bar = tqdm(train_dataloader[subEpoch], desc=f"E: {epoch}, SE: {e}")
-    #         total_loss = 0
-    #         total_acc = 0
-    #         step = 0
-    #         label_correct_counts = defaultdict(int, {label: 0 for label in range(num_labels)})
-    #         label_total_counts = defaultdict(int, {label: 0 for label in range(num_labels)})
 
-    #         for batch in progress_bar:
+            for batch in tqdm(eval_dataloader):
                 
-    #             batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
+                if args.ddp:
+                    batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
+                else:
+                    batch = {"input_ids": batch['input_ids'].to(args.device), "attention_mask": batch['attention_mask'].to(args.device), "labels": batch['label'].to(args.device)}
 
-    #             # Forward pass
-    #             outputs = model(**batch)
-    #             loss = outputs.loss
-    #             logits = outputs.logits
-    #             # Backward pass and optimization
-    #             optimizer.zero_grad()
-    #             loss.backward()
-    #             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0) 
-
-    #             optimizer.step()
-    #             lr_scheduler.step()
-
-    #             # Compute per-label accuracy for this batch
-    #             preds = logits.detach().cpu().numpy()
-    #             labels = batch["labels"].detach().cpu().numpy()
-    #             label_accuracies = compute_label_accuracies(preds, labels, num_labels)
-
-    #             # Track total counts for each label
-    #             for label, acc in label_accuracies.items():
-    #                 if acc is not None:
-    #                     label_correct_counts[label] += acc * len(np.where(labels == label)[0])
-    #                     label_total_counts[label] += len(np.where(labels == label)[0])
-
-    #             # Track total loss
-    #             total_loss += loss.item()
-    #             step += 1
-
-    #             # Display loss and accuracy in the progress bar
-    #             progress_bar.set_postfix(loss=loss.item())
-
-    #         # Calculate average loss and accuracy per label
-    #         avg_loss = total_loss / step
+                outputs = model(**batch)
+                logits = outputs.logits
+                
+                preds = logits.detach().cpu().numpy()
+                labels = batch["labels"].detach().cpu().numpy()
+                label_accuracies = compute_label_accuracies(preds, labels, num_labels)
             
-    #         dist.barrier()
+                for label, acc in label_accuracies.items():
+                    if acc is not None:
+                        eval_correct_count[label] += acc * len(np.where(labels == label)[0])
+                        eval_total_count[label] += len(np.where(labels == label)[0])
             
-    #         if args.ddp:
-    #             reduce_dict(args, label_correct_counts, num_labels)
-    #             reduce_dict(args, label_total_counts, num_labels)
-                
-    #         dist.barrier()
+            if args.ddp:
+                dist.barrier()
 
-    #         if (args.ddp and dist.get_rank() == 0) or not args.ddp:
-    #             out = ""
-    #             for label in range(num_labels):
-    #                 if label_total_counts[label] > 0:
-    #                     acc = label_correct_counts[label] / label_total_counts[label]
-    #                     out += f"{round(acc, 4)}    "
-    #                 else:
-    #                     out += "X   "
-    #                 print(label, label_correct_counts[label], label_total_counts[label])
+                reduce_dict(args, eval_correct_count, num_labels)
+                reduce_dict(args, eval_total_count, num_labels)
 
-    #             logging.info(f"---training accuracy at {epoch} of {subEpoch}--------------------------------------")       
-    #             logging.info(out)
+                dist.barrier()
 
-    #         dist.barrier()
-
-
-    #         # Validation loop
-    #         eval_correct_count = defaultdict(int, {label: 0 for label in range(num_labels)})
-    #         eval_total_count = defaultdict(int, {label: 0 for label in range(num_labels)})
-
-    #         if not args.ddp or dist.get_rank() == 0:
-    #             model.module.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch))
-
-    #         model.eval()
-
-    #         with torch.no_grad():
-    #             progress_bar = tqdm(eval_dataloader, desc=f"evaluating...")
-    #             for batch in progress_bar:
+            if (args.ddp and dist.get_rank() == 0) or not args.ddp:
+                print("i will write this!")
+                out = ""
+                for label in range(num_labels):
+                    if eval_total_count[label] > 0:
+                        acc = eval_correct_count[label] / eval_total_count[label]
+                        out += f"{round(acc, 4)}    "
+                    else:
+                        out += "X   "
                     
-    #                 batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
-                    
-    #                 outputs = model(**batch)
-    #                 logits = outputs.logits
-                    
-    #                 preds = logits.detach().cpu().numpy()
-    #                 labels = batch["labels"].detach().cpu().numpy()
-    #                 label_accuracies = compute_label_accuracies(preds, labels, num_labels)
-                
-    #                 for label, acc in label_accuracies.items():
-    #                     if acc is not None:
-    #                         eval_correct_count[label] += acc * len(np.where(labels == label)[0])
-    #                         eval_total_count[label] += len(np.where(labels == label)[0])
+                    print(f"evaluate {dltype},", label, eval_correct_count[label], eval_total_count[label])
 
-    #             dist.barrier()
-                            
-    #             if args.ddp:
-    #                 reduce_dict(args, eval_correct_count, num_labels)
-    #                 reduce_dict(args, eval_total_count, num_labels)
-                            
-    #             dist.barrier()
-    #             if (args.ddp and dist.get_rank() == 0) or not args.ddp:
-    #                 out = ""
-    #                 for label in range(num_labels):
-    #                     if eval_total_count[label] > 0:
-    #                         acc = eval_correct_count[label] / eval_total_count[label]
-    #                         out += f"{round(acc, 4)}    "
-    #                     else:
-    #                         out += "X   "
-                    
-    #                     print(label, eval_correct_count[label], eval_total_count[label])
-
-    #                 logging.info(f"---eval accuracy at {epoch} of {subEpoch}--------------------------------------")        
-    #                 logging.info(out)
-
-    #             dist.barrier()
-
-
+                logging.info(f"---eval accuracy on {dltype} at 0 of base--------------------------------------")        
+                logging.info(out)
+            
+            if args.ddp:
+                dist.barrier()
     
+
+    for epoch in range(num_epochs):
+
+        for e, subEpoch in enumerate([f"{i}_low" for i in FINAL_TARGET_POS] + [f"{i}_high" for i in FINAL_TARGET_POS]):
+
+            print(subEpoch)
+
+            model.train()
+            if args.ddp:
+                train_dataloader[subEpoch].sampler.set_epoch(epoch)
+            total_loss = 0
+            total_acc = 0
+            step = 0
+            label_correct_counts = defaultdict(int, {label: 0 for label in range(num_labels)})
+            label_total_counts = defaultdict(int, {label: 0 for label in range(num_labels)})
+
+            for batch in train_dataloader[subEpoch]:
+                
+                if args.ddp:
+                    batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
+                else:
+                    batch = {"input_ids": batch['input_ids'].to(args.device), "attention_mask": batch['attention_mask'].to(args.device), "labels": batch['label'].to(args.device)}
+                
+                optimizer.zero_grad()
+
+                # Forward pass
+                outputs = model(**batch)
+                loss = outputs.loss
+                logits = outputs.logits
+                # Backward pass and optimization
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0) 
+
+                optimizer.step()
+                lr_scheduler.step()
+
+                # Compute per-label accuracy for this batch
+                preds = logits.detach().cpu().numpy()
+                labels = batch["labels"].detach().cpu().numpy()
+                label_accuracies = compute_label_accuracies(preds, labels, num_labels)
+
+                # Track total counts for each label
+                for label, acc in label_accuracies.items():
+                    if acc is not None:
+                        label_correct_counts[label] += acc * len(np.where(labels == label)[0])
+                        label_total_counts[label] += len(np.where(labels == label)[0])
+
+                # Track total loss
+                total_loss += loss.item()
+                step += 1
+
+                # Display loss and accuracy in the progress bar
+
+            # Calculate average loss and accuracy per label
+            avg_loss = total_loss / step
+            
+            if args.ddp:
+                dist.barrier()
+            
+                reduce_dict(args, label_correct_counts, num_labels)
+                reduce_dict(args, label_total_counts, num_labels)
+                
+                dist.barrier()
+
+            if (args.ddp and dist.get_rank() == 0) or not args.ddp:
+                out = ""
+                for label in range(num_labels):
+                    if label_total_counts[label] > 0:
+                        acc = label_correct_counts[label] / label_total_counts[label]
+                        out += f"{round(acc, 4)}    "
+                    else:
+                        out += "X   "
+                    print("training,", label, label_correct_counts[label], label_total_counts[label])
+
+                logging.info(f"---training accuracy at {epoch} of {subEpoch}--------------------------------------")       
+                logging.info(out)
+          
+            if args.ddp:
+
+                dist.barrier()
+
+
+            # Validation loop
+
+            if args.ddp and dist.get_rank() == 0:
+                model.module.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch))
+            if not args.ddp:
+                model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch))
+
+            model.eval()
+
+            with torch.no_grad():
+                for dltype, eval_dataloader in zip(['id', 'ood'], [eval_dataloader_id, eval_dataloader_od]):
+
+                    eval_correct_count = defaultdict(int, {label: 0 for label in range(num_labels)})
+                    eval_total_count = defaultdict(int, {label: 0 for label in range(num_labels)})
+            
+                    for batch in eval_dataloader:
+
+                        if args.ddp:
+                            batch = {"input_ids": batch['input_ids'].to(args.local_rank), "attention_mask": batch['attention_mask'].to(args.local_rank), "labels": batch['label'].to(args.local_rank)}
+                        else:
+                            batch = {"input_ids": batch['input_ids'].to(args.device), "attention_mask": batch['attention_mask'].to(args.device), "labels": batch['label'].to(args.device)}
+                        
+                        outputs = model(**batch)
+                        logits = outputs.logits
+                        
+                        preds = logits.detach().cpu().numpy()
+                        labels = batch["labels"].detach().cpu().numpy()
+                        label_accuracies = compute_label_accuracies(preds, labels, num_labels)
+                    
+                        for label, acc in label_accuracies.items():
+                            if acc is not None:
+                                eval_correct_count[label] += acc * len(np.where(labels == label)[0])
+                                eval_total_count[label] += len(np.where(labels == label)[0])
+
+                    if args.ddp:
+                        dist.barrier()
+
+                        reduce_dict(args, eval_correct_count, num_labels)
+                        reduce_dict(args, eval_total_count, num_labels)
+
+                        dist.barrier()
+                    if (args.ddp and dist.get_rank() == 0) or not args.ddp:
+                        out = ""
+                        for label in range(num_labels):
+                            if eval_total_count[label] > 0:
+                                acc = eval_correct_count[label] / eval_total_count[label]
+                                out += f"{round(acc, 4)}    "
+                            else:
+                                out += "X   "
+                        
+                            print(f"evaluate {dltype}", label, eval_correct_count[label], eval_total_count[label])
+
+                        logging.info(f"---eval accuracy on {dltype} at {epoch} of {subEpoch}--------------------------------------")        
+                        logging.info(out)
+    
+                    if args.ddp:
+
+                        dist.barrier()
+
+
+        
 
     # ############### filter those which have even duplicated tokens
     # FULL_POS = config['dataStats']['correctXPosNoSym']
@@ -1213,6 +1246,9 @@ if __name__ == "__main__":
     if dp:
         from torch.nn import DataParallel
 
+    parser = ArgumentParser()
+    parser.add_argument("--lr", required = True, type = float)
+    args1 = parser.parse_args()
 
 
     args = Namespace(
@@ -1221,9 +1257,12 @@ if __name__ == "__main__":
         yaml_path = "/home/hyohyeongjang/2024SWELL/codes/v4_config.yaml",
         dp = dp,
         ddp = ddp,
-        local_rank = local_rank
+        local_rank = local_rank,
+        device = "cuda" if torch.cuda.is_available() else "cpu",
+        lr = args1.lr
     )
     
+    print(args.device)
     with open(args.yaml_path, 'r') as file:
         yaml_config = yaml.safe_load(file)
     
