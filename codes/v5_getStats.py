@@ -922,7 +922,7 @@ def main(args, config):
 
     # train model
     
-    NUM_EVAL_BUCKET = 10
+    NUM_EVAL_BUCKET = 5
     num_epochs = 20
     num_subEpoch = NUM_SUBBUCKET - NUM_EVAL_BUCKET
 
@@ -940,13 +940,14 @@ def main(args, config):
         value.columns = ['text', 'label']
         f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config)
         value = Dataset.from_pandas(value)
-        datasets[key] = value.map(f, batched=True, num_proc = config['contTrain']['num_cores_train']).remove_columns("text")
+        datasets[key] = value.map(f, batched=True, num_proc = 10).remove_columns("text")
 
-    eval_range = list(range(args.bucket * NUM_EVAL_BUCKET, (args.bucket + 1) * NUM_EVAL_BUCKET))
-    train_range = [i for i in range(NUM_SUBBUCKET) if i not in eval_range]
+    eval_range = list(range(args.bucket * 10, (args.bucket) * 10 + NUM_EVAL_BUCKET))
+    t = list(range(args.bucket * 10, (args.bucket + 1) * 10))
+    train_range = [i for i in range(NUM_SUBBUCKET) if i not in t]
     print(eval_range)
     print(train_range)
-    train_dataset = {key: value for key, value in datasets if key in train_range}
+    train_dataset = {key: value for key, value in datasets.items() if key in train_range}
     eval_dataset = concatenate_datasets([value for key, value in datasets.items() if key in eval_range])
 
         # Create DataLoaders
@@ -967,7 +968,7 @@ def main(args, config):
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay = 0.01)
     torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0) 
 
-    num_training_steps = sum([len(i) for i in train_dataloader]) * num_epochs  
+    num_training_steps = sum([len(value) for key, value in train_dataloader.items()]) * num_epochs  
     lr_scheduler = get_scheduler(
         name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
     )

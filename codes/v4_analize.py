@@ -6,20 +6,21 @@ def get_args(line, state):
 
     t = re.sub("-", "", line.strip()).split(" ")
     epoch = t[t.index("at")+1]
+    subEpoch = t[t.index("on")+1]
 
-    return epoch, state
+    return epoch, subEpoch, state
 
-def get_dfs(line, config, epoch):
+def get_dfs(line, config, epoch, subepoch):
     res = [i for i in line.strip().split(":")[1].split(" ") if i != ""]
     res = pd.DataFrame(res).T
     res.columns = config['dataStats']['correctXPos']
-    res.index = pd.Index([f"{epoch}"])
+    res.index = pd.Index([f"{epoch}_{subepoch}"])
 
     return res
 
 def get_others(res, target):
     others = list(set(res.columns) - set(target))
-    to = res[others].replace("X", np.nan).map(float).mean(axis = 1, skipna=True).round(4)
+    to = res[others].replace("X", np.nan).applymap(float).mean(axis = 1, skipna=True).round(4)
     to.name = "OHTERS"
     return to 
 
@@ -27,6 +28,7 @@ def main(args, config):
     target = ['NN', 'IN']
     state = "None"
     epoch = "0"
+    subepoch = "None"
 
     trainRes = pd.DataFrame(columns = config['dataStats']['correctXPos'])
     evalResId = pd.DataFrame(columns = config['dataStats']['correctXPos'])
@@ -38,16 +40,16 @@ def main(args, config):
     
     for line in x:
         if "eval" in line:
-            epoch, state = get_args(line, "eval")
+            epoch, subepoch, state = get_args(line, "eval")
             continue
         elif "train" in line:
-            epoch, state = get_args(line, "train")
+            epoch, subepoch, state = get_args(line, "train")
             
             continue
         else:
             pass
 
-        res = get_dfs(line, config, epoch)
+        res = get_dfs(line, config, epoch, subepoch)
         if state == "train":
             trainRes = pd.concat([trainRes, res], axis = 0)
         elif state == "eval":
