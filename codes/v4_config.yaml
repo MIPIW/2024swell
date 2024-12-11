@@ -62,6 +62,7 @@ fineTune:
   checkpoint_FTModel: "/home/hyohyeongjang/2024SWELL/weights/FT/FT_{}_{}_{}_{}" # used in continualTrain
 
 analysis: "/home/hyohyeongjang/2024SWELL/codes/trainingSteps_0.0001.log"
-analysis1: "/home/hyohyeongjang/2024SWELL/codes/trainingSteps_5e-05.log"
+analysis1: /home/hyohyeongjang/2024SWELL/codes/trainingSteps_1e-05.log
+analysis2: "/home/hyohyeongjang/2024SWELL/codes/trainingSteps_5e-05.log"
 
 # analysis2: "/home/hyohyeongjang/2024SWELL/out/trainingSteps_20241209_142231_notSkipOtherPos.log"

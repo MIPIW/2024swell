@@ -2,6 +2,14 @@ import yaml, pickle, re
 from argparse import Namespace
 import pandas as pd, numpy as np
 
+def get_args(line, state):
+
+    t = re.sub("-", "", line.strip()).split(" ")
+    epoch = t[t.index("at")+1]
+    dataset = t[t.index("of")+1]
+
+    return epoch, dataset, state
+
 def main(args, config):
     target = ['JJR', 'WDT']
     state = "None"
@@ -11,23 +19,23 @@ def main(args, config):
     evalResId = pd.DataFrame(columns = config['dataStats']['correctXPos'])
     evalResOOD = pd.DataFrame(columns = config['dataStats']['correctXPos'])
 
-    with open(config['analysis'], "r") as f:
+    with open(config['analysis2'], "r") as f:
         x = f.readlines()
     
     for line in x:
         if "eval" in line:
             if "id" in line:
-                state = "eval_id"
-                t = re.sub("-", "", line.strip()).split(" ")
-                epoch = t[t.index("at")+1]
-                dataset = t[t.index("of")+1]
+                epoch, dataset, state = get_args(line, "eval_id")
                 continue
             if "ood" in line:
-                state = "eval_ood"
+                epoch, dataset, state = get_args(line, "eval_ood")
+                
+                continue
+            if "td" in line:
+                state = "eval_td"
                 t = re.sub("-", "", line.strip()).split(" ")
                 epoch = t[t.index("at")+1]
                 dataset = t[t.index("of")+1]
-                continue
 
         elif "train" in line:
             t = re.sub("-", "", line.strip()).split(" ")
