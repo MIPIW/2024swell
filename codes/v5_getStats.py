@@ -944,7 +944,9 @@ def main(args, config):
 
     eval_range = list(range(args.bucket * NUM_EVAL_BUCKET, (args.bucket + 1) * NUM_EVAL_BUCKET))
     train_range = [i for i in range(NUM_SUBBUCKET) if i not in eval_range]
-    train_dataset = {key: value for key, value in datasets if key not in eval_range}
+    print(eval_range)
+    print(train_range)
+    train_dataset = {key: value for key, value in datasets if key in train_range}
     eval_dataset = concatenate_datasets([value for key, value in datasets.items() if key in eval_range])
 
         # Create DataLoaders
