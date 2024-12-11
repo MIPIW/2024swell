@@ -542,9 +542,9 @@ def train(args, config, model, train_dataloader, num_labels, optimizer, lr_sched
             # Validation loop
 
             if args.ddp and dist.get_rank() == 0:
-                model.module.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch))
+                model.module.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch, args.lr))
             if not args.ddp:
-                model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch))
+                model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch, args.lr))
 
 
 webhook_url = "https://hooks.slack.com/services/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"
@@ -1026,7 +1026,7 @@ def main(args, config):
     num_labels = 39  # Number of classes for token classification
     tokenizer = AutoTokenizer.from_pretrained(model_name, add_prefix_space=True)
     model = AutoModelForTokenClassification.from_pretrained(model_name, num_labels=num_labels)
-    model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(0, "base"))
+    model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(0, "base", args.lr))
 
     with open(config['contFiles']['train_dataset_CT'], "rb") as f:
         train_dataset_dic = pickle.load(f)
@@ -1099,7 +1099,7 @@ def main(args, config):
             level=logging.INFO
     )
 
-    num_epochs = 2
+    num_epochs = 10
 
 
     # baseline evaluation

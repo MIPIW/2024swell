@@ -52,7 +52,7 @@ contFiles:
 
 contTrain:
   checkpoint_baseModel: "FacebookAI/roberta-base" # used in continualTrain
-  checkpoint_CTModel: "/home/hyohyeongjang/2024SWELL/weights/CT/CT_{}_{}" # used in continualTrain
+  checkpoint_CTModel: "/home/hyohyeongjang/2024SWELL/weights/CT/CT_{}_{}_{}" # used in continualTrain
   max_seq_len: 512
   batch_size: 64 # 64에 약 25000MiB(100%)
   do_RandomInitialize: False
@@ -63,6 +63,6 @@ fineTune:
 
 analysis: "/home/hyohyeongjang/2024SWELL/codes/trainingSteps_0.0001.log"
 analysis1: /home/hyohyeongjang/2024SWELL/codes/trainingSteps_1e-05.log
-analysis2: "/home/hyohyeongjang/2024SWELL/codes/trainingSteps_5e-05.log"
+analysis2: "/home/hyohyeongjang/2024SWELL/codes/trainingSteps_1e-06.log"
 
 # analysis2: "/home/hyohyeongjang/2024SWELL/out/trainingSteps_20241209_142231_notSkipOtherPos.log"

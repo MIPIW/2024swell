@@ -10,15 +10,31 @@ def get_args(line, state):
 
     return epoch, dataset, state
 
+def get_dfs(line, config, epoch, dataset):
+    res = [i for i in line.strip().split(":")[1].split(" ") if i != ""]
+    res = pd.DataFrame(res).T
+    res.columns = config['dataStats']['correctXPos']
+    res.index = pd.Index([f"{epoch}_{dataset}"])
+
+    return res
+
+def get_others(res, target):
+    others = list(set(res.columns) - set(target))
+    to = res[others].replace("X", np.nan).map(float).mean(axis = 1, skipna=True).round(4)
+    to.name = "OHTERS"
+    return to 
+
 def main(args, config):
     target = ['JJR', 'WDT']
     state = "None"
     dataset = "Baseline"
     epoch = "0"
+
     trainRes = pd.DataFrame(columns = config['dataStats']['correctXPos'])
     evalResId = pd.DataFrame(columns = config['dataStats']['correctXPos'])
     evalResOOD = pd.DataFrame(columns = config['dataStats']['correctXPos'])
-
+    evalResTd = pd.DataFrame(columns = config['dataStats']['correctXPos'])
+    
     with open(config['analysis2'], "r") as f:
         x = f.readlines()
     
@@ -32,54 +48,38 @@ def main(args, config):
                 
                 continue
             if "td" in line:
-                state = "eval_td"
-                t = re.sub("-", "", line.strip()).split(" ")
-                epoch = t[t.index("at")+1]
-                dataset = t[t.index("of")+1]
-
+                epoch, dataset, state = get_args(line, "eval_td")
+                continue
         elif "train" in line:
-            t = re.sub("-", "", line.strip()).split(" ")
-            epoch = t[t.index("at")+1]
-            dataset = t[t.index("of")+1]
-            state = "train"
+            epoch, dataset, state = get_args(line, "train")
+            
             continue
         else:
             pass
-    
+
+        res = get_dfs(line, config, epoch, dataset)
         if state == "train":
-            res = [i for i in line.strip().split(":")[1].split(" ") if i != ""]
-            res = pd.DataFrame(res).T
-            res.columns = config['dataStats']['correctXPos']
-            res.index = pd.Index([f"{epoch}_{dataset}"])
             trainRes = pd.concat([trainRes, res], axis = 0)
         elif state == "eval_id":
-            res = [i for i in line.strip().split(":")[1].split(" ") if i != ""]
-            res = pd.DataFrame(res).T
-            res.columns = config['dataStats']['correctXPos']
-            res.index = pd.Index([f"{epoch}_{dataset}"])
             evalResId = pd.concat([evalResId, res], axis = 0)
         elif state == "eval_ood":
-            res = [i for i in line.strip().split(":")[1].split(" ") if i != ""]
-            res = pd.DataFrame(res).T
-            res.columns = config['dataStats']['correctXPos']
-            res.index = pd.Index([f"{epoch}_{dataset}"])
             evalResOOD = pd.concat([evalResOOD, res], axis = 0)
+        elif state == "eval_td":
+            evalResTd = pd.concat([evalResTd, res], axis = 0)
 
-
-    others = list(set(trainRes.columns) - set(target))
-    to = trainRes[others].replace("X", np.nan).map(float).mean(axis = 1, skipna=True).round(4)
-    to.name = "OHTERS"
-    eo = evalResId[others].replace("X", np.nan).map(float).mean(axis = 1, skipna=True).round(4)
-    eo.name = "OTHERS"
-    eoo = evalResOOD[others].replace("X", np.nan).map(float).mean(axis = 1, skipna=True).round(4)
-    eoo.name = "OTHERS"
-
+    to = get_others(trainRes, target)
+    eo = get_others(evalResId, target)
+    eoo = get_others(evalResOOD, target)
+    et = get_others(evalResTd, target)
+    
     print("-------------------------------")
     print("train", "\n", pd.concat([trainRes[target], to], axis = 1))
     print("-------------------------------")
     print("eval id", "\n", pd.concat([evalResId[target], eo], axis = 1))
     print("-------------------------------")
     print("eval ood", "\n", pd.concat([evalResOOD[target], eoo], axis = 1))
+    print("-------------------------------")
+    print("eval td", "\n", pd.concat([evalResTd[target], et], axis = 1))
     print("-------------------------------")
 
 
