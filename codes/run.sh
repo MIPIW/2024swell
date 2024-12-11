@@ -1,3 +1,1 @@
-CUDA_VISIBLE_DEVICES="0" python3 v2_getStats.py --lr 1e-4
-CUDA_VISIBLE_DEVICES="0" python3 v2_getStats.py --lr 5e-4
-
+torchrun --nproc_per_node=4 v5_getStats.py --lr 1e-5 --bucket 0

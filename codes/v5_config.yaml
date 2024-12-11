@@ -1,0 +1,68 @@
+originalData:
+  dataset_CT: ["allenai/c4", "realnewslike"]
+  dataset_FT: ["universal_dependencies", "en_ewt"] # used in anywhere
+  raw_CT: "/home/hyohyeongjang/2024SWELL/data_raw/ct_raw_v3" # used in anywhere
+  raw_FT: "/home/hyohyeongjang/2024SWELL/data_raw/ft_raw_v3.pk" # used in anywhere
+  raw_filter_original_CT: "/home/hyohyeongjang/2024SWELL/data_raw/ct_filter_original_v3.pk" # used in anywhere
+  raw_filter_split_CT: "/home/hyohyeongjang/2024SWELL/data_raw/ct_filter_splitted_v3.pk" # used in anywhere
+  raw_filter_FT: "/home/hyohyeongjang/2024SWELL/data_raw/ft_filter_v3.pk" # used in anywhere
+
+dataStats: 
+  bag_of_word_CT: "/home/hyohyeongjang/2024SWELL/meta/BOW_CT_v3.pk" # used in getWords
+  bag_of_word_FT: "/home/hyohyeongjang/2024SWELL/meta/BOW_FT_v3.pk" # used in getWords
+  cnt_pos_CT: "/home/hyohyeongjang/2024SWELL/meta/cnt_pos_CT_v3.pk" # used in getWords
+  cnt_pos_FT: "/home/hyohyeongjang/2024SWELL/meta/cnt_pos_FT_v3.pk" # used in getWords
+  file_wordStats_CT: "/home/hyohyeongjang/2024SWELL/meta/word_ct_v3.pk" # used in getWords
+  file_wordStats_FT: "/home/hyohyeongjang/2024SWELL/meta/word_ft_v3.pk" # used in getWords
+  correctXPos: ['``','LS','SYM',"''",'POS','UH','NNPS','WP$','$','FW','RBS','PDT','EX','RBR',
+                'NNP','JJS','JJR','RP','WRB','WP','WDT','MD','PRP$','VBG','VBN','VBP','CD',
+                'PRP','VBZ','TO','CC','VBD','VB','RB','NNS','JJ','DT','IN','NN']
+  correctXPosNoSym: ['UH','NNPS','WP$','$','FW','RBS','PDT','EX','RBR',
+                'NNP','JJS','JJR','RP','WRB','WP','WDT','MD','PRP$','VBG','VBN','VBP','CD',
+                'PRP','VBZ','TO','CC','VBD','VB','RB','NNS','JJ','DT','IN','NN']
+  labelToId: '{"``": 0, "LS": 1, "SYM": 2, "''": 3, "POS": 4, "UH": 5, "NNPS": 6, "WP$": 7, "$": 8, "FW": 9,
+              "RBS": 10, "PDT": 11, "EX": 12, "RBR": 13, "NNP": 14, "JJS": 15, "JJR": 16, "RP": 17,
+              "WRB": 18, "WP": 19, "WDT": 20, "MD": 21, "PRP$": 22, "VBG": 23, "VBN": 24, "VBP": 25,
+              "CD": 26, "PRP": 27, "VBZ": 28, "TO": 29, "CC": 30, "VBD": 31, "VB": 32, "RB": 33,
+              "NNS": 34, "JJ": 35, "DT": 36, "IN": 37, "NN": 38}'
+  posStats: "/home/hyohyeongjang/2024SWELL/meta/pos_count.csv"
+  ddupPosStats: "/home/hyohyeongjang/2024SWELL/meta/pos_count_ddup.csv"
+  posQuantiles: "/home/hyohyeongjang/2024SWELL/meta/pos_quantile.csv"
+  otherPosQuantilesLowNormal: "/home/hyohyeongjang/2024SWELL/meta/other_pos_quantile_normal_low.csv"
+  otherPosQuantilesLowUnique: "/home/hyohyeongjang/2024SWELL/meta/other_pos_quantile_unique_low.csv"
+  otherPosQuantilesHighNormal: "/home/hyohyeongjang/2024SWELL/meta/other_pos_quantile_normal_high.csv"
+  otherPosQuantilesHighUnique: "/home/hyohyeongjang/2024SWELL/meta/other_pos_quantile_unique_high.csv"
+
+  subwordPos_CT: "/home/hyohyeongjang/2024SWELL/meta/subwordPos_CT_v3.pk"
+  subword_CT: "/home/hyohyeongjang/2024SWELL/meta/subword_CT_v3.pk"
+  pos_freq_CT: "/home/hyohyeongjang/2024SWELL/meta/pos_freq_CT"
+  pos_abund_CT:  "/home/hyohyeongjang/2024SWELL/meta/pos_abund_CT"
+  scores_original_CT: "/home/hyohyeongjang/2024SWELL/scores/score_CT_original_{}_v3.pk" # used in getScores
+  scores_masked_CT: "/home/hyohyeongjang/2024SWELL/scores/score_CT_mask_{}_v3.pk" # used in getScores
+  checkpoint_pplModel: "meta-llama/Meta-Llama-3-8B-Instruct" # used in getScores
+  num_cores: 40 # making dataset
+
+contFiles:
+  ratio: [0.25, 0.5, 0.75, 1.0]
+  data_CT: "/home/hyohyeongjang/2024SWELL/data_CT/CT_{}_v5.pk" # used in getFiles
+  data_FT: "/home/hyohyeongjang/2024SWELL/data_FT/FT_{}_{}_v4.pk" # used in getFiles
+  data_CT_str: "/home/hyohyeongjang/2024SWELL/data_CT/CT_{}_{}_raw.pk"
+  train_dataset_CT: "/home/hyohyeongjang/2024SWELL/data_CT/train_dataset.pk"
+  eval_dataset_CT: "/home/hyohyeongjang/2024SWELL/data_CT/eval_dataset.pk"
+
+contTrain:
+  checkpoint_baseModel: "FacebookAI/roberta-base" # used in continualTrain
+  checkpoint_CTModel: "/home/hyohyeongjang/2024SWELL/weights/CT/CT_{}_{}_{}" # used in continualTrain
+  max_seq_len: 512
+  batch_size: 64 # 64에 약 25000MiB(100%)
+  do_RandomInitialize: False
+  num_cores_train: 10
+
+fineTune:
+  checkpoint_FTModel: "/home/hyohyeongjang/2024SWELL/weights/FT/FT_{}_{}_{}_{}" # used in continualTrain
+
+analysis: "/home/hyohyeongjang/2024SWELL/codes/trainingSteps_0.0001.log"
+analysis1: /home/hyohyeongjang/2024SWELL/codes/trainingSteps_1e-05.log
+analysis2: "/home/hyohyeongjang/2024SWELL/codes/trainingSteps_1e-06.log"
+
+# analysis2: "/home/hyohyeongjang/2024SWELL/out/trainingSteps_20241209_142231_notSkipOtherPos.log"

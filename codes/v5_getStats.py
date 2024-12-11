@@ -15,6 +15,10 @@ import string
 import torch, random
 import logging
 from torch.utils.data import DataLoader, DistributedSampler
+from sklearn.model_selection import StratifiedKFold
+import pandas as pd
+import numpy as np
+from itertools import combinations
 
 # sys.path.append(os.path.expanduser('~/'))
 # from myUtils.parallelUtils import ParallelUtils
@@ -339,7 +343,7 @@ def _process_chunk4(pos, df):
 
     return {pos: [quant_pos[i] for i in np.arange(0.1, 1.1, 0.1)]}
 
-def tokenize_and_align_labels(examples, args, config, tokenizer, unPos_idx, pos_idx):
+def tokenize_and_align_labels(examples, args, config, tokenizer):
     
     tokenized_inputs = tokenizer(examples["text"], truncation=True, padding="max_length", max_length=512, is_split_into_words = True)
     
@@ -408,7 +412,7 @@ def reduce_dict(args, counts_dict, num_labels):
         dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
         counts_dict[label] = tensor.item()
 
-def evaluate(args, config, model, eval_dataloader, eval_dataloader_type, num_labels, epoch, subEpoch):
+def evaluate(args, config, model, eval_dataloader, num_labels, epoch):
     model.eval()
 
     with torch.no_grad():
@@ -452,16 +456,16 @@ def evaluate(args, config, model, eval_dataloader, eval_dataloader_type, num_lab
                 else:
                     out += "X   "
                 
-                print(f"evaluate {eval_dataloader_type},", label, eval_correct_count[label], eval_total_count[label])
+                print(f"evaluate", label, eval_correct_count[label], eval_total_count[label])
 
-            logging.info(f"---eval accuracy on {eval_dataloader_type} at {epoch} of {subEpoch}--------------------------------------")        
+            logging.info(f"--- eval accuracy at {epoch} --------------------------------------")        
             logging.info(out)
         
         if args.ddp:
             dist.barrier()
 
 
-def train(args, config, model, train_dataloader, num_labels, optimizer, lr_scheduler, epoch, subEpoch):
+def train(args, config, model, train_dataloader, num_labels, optimizer, lr_scheduler, epoch):
 
 
             model.train()
@@ -545,6 +549,13 @@ def train(args, config, model, train_dataloader, num_labels, optimizer, lr_sched
                 model.module.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch, args.lr))
             if not args.ddp:
                 model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(epoch, subEpoch, args.lr))
+
+
+def read_csv_files(i, config):
+    """Function to read the normal and unique CSV files for a given index."""
+    df_normal_count = pd.read_csv(config['dataStats']['pos_freq_CT'] + f"_{i}_normal.csv")
+    df_unique_count = pd.read_csv(config['dataStats']['pos_freq_CT'] + f"_{i}_unique.csv")
+    return df_normal_count, df_unique_count
 
 
 webhook_url = "https://hooks.slack.com/services/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"
@@ -715,9 +726,10 @@ def main(args, config):
     # respectively LL, LH, HL, HH
     # FINAL_TARGET_POS = ['JJR', 'WDT','MD', "VBP"] # decided by these steps
     FINAL_TARGET_POS = ['IN', 'NN'] # decided by these steps
+    FINAL_TARGET_UNPOS = ['NN', 'IN']
     
     FINAL_RANGE = [(0,1), (2,4), (5,7)]
-    FINAL_RANGE = [(60, 80)]
+    FINAL_RANGE = [(0, 166)]
 
                
 
@@ -774,349 +786,218 @@ def main(args, config):
     # pd.DataFrame.from_dict(n_highQ, orient = "index").to_csv(config['dataStats']['otherPosQuantilesHighNormal'])
     # pd.DataFrame.from_dict(u_lowQ, orient = "index").to_csv(config['dataStats']['otherPosQuantilesLowUnique'])
     # pd.DataFrame.from_dict(u_highQ, orient = "index").to_csv(config['dataStats']['otherPosQuantilesHighUnique'])
+   ############ filter those which have even tokens
 
+    # def balanced_grouping(df, num_groups=5):
+    #     """
+    #     주어진 데이터프레임을 그룹 내 pos1과 pos2의 합계가 비슷해지도록 그룹핑합니다.
         
+    #     Parameters:
+    #     - df: pd.DataFrame (pos1과 pos2 칼럼을 포함해야 함)
+    #     - num_groups: int (생성할 그룹의 수, 기본값 5)
+        
+    #     Returns:
+    #     - pd.DataFrame: 그룹 정보가 추가된 데이터프레임
+    #     - pd.DataFrame: 각 그룹별 pos1, pos2 합계
+    #     """
+    #     # 초기 그룹 할당: 인덱스를 num_groups 개수로 나누기
+    #     df = df.sample(frac=1, random_state=42).reset_index(drop=True)
+    #     df['group'] = df.index % num_groups
 
-#    ############ filter those which have even tokens
-#     FULL_POS = config['dataStats']['correctXPosNoSym']
+    #     # 그룹별 pos1, pos2 합계를 균등하게 맞추기 위해 반복 조정
+    #     for _ in tqdm(range(1000)):  # 최대 100번 반복
+    #         group_sums = df.groupby('group')[['pos1', 'pos2']].sum()
+
+    #         # 그룹 간 pos1과 pos2 합계의 차이 계산
+    #         pos1_diff = group_sums['pos1'].max() - group_sums['pos1'].min()
+    #         pos2_diff = group_sums['pos2'].max() - group_sums['pos2'].min()
+
+    #         # 차이가 충분히 작으면 조정 종료
+    #         if pos1_diff < 10 and pos2_diff < 10:
+    #             break
+
+    #         # 각 그룹에서 pos2 - pos1이 가장 큰 10개의 row를 찾기
+    #         rows_to_remove = []
+    #         for group in df['group'].unique():
+    #             group_df = df[df['group'] == group].copy()
+    #             if len(group_df) > 40000:
+    #                 group_df.loc[:, 'diff'] = group_df['pos2'] - group_df['pos1']
+    #                 max_diff_rows = group_df.nlargest(1000, 'diff')
+    #                 rows_to_remove.extend(max_diff_rows.index)
+
+    #         # 찾은 row들을 제거
+    #         df = df.drop(rows_to_remove)
+
+    #         # 그룹 재할당
+    #         df['group'] = df.index % num_groups
+
+    #     # 각 그룹별 pos1과 pos2 합계 계산
+    #     group_totals = df.groupby('group')[['pos1', 'pos2']].sum().reset_index()
+    #     print(df.groupby('group').count())
+    #     return df, group_totals
+
+
+    # FULL_POS = config['dataStats']['correctXPosNoSym']
     
-#     pos_normal = pd.DataFrame(columns=FULL_POS)
-#     pos_unique = pd.DataFrame(columns=FULL_POS)
 
-#     for i in tqdm(range(10)):
-#         df_normal_count = pd.read_csv(config['dataStats']['pos_freq_CT']+f"_{i}_normal.csv")
-#         df_unique_count = pd.read_csv(config['dataStats']['pos_freq_CT']+f"_{i}_unique.csv")
-
-#         pos_normal = pd.concat([pos_normal, df_normal_count], axis = 0).reset_index(drop = True)
-#         pos_unique = pd.concat([pos_unique, df_unique_count], axis = 0).reset_index(drop = True)
-
-#     for pos in FINAL_TARGET_POS:
-#         if pos == FINAL_TARGET_POS[0]:
-#             unPos = FINAL_TARGET_POS[1]
-#         else:
-#             unPos = FINAL_TARGET_POS[0]
-        
-#         # target_low_off = pos_normal[pos].map(lambda x: ranges[0][0] <= x <= ranges[0][1] )
-#         target_low_idx = pos_normal[pos].map(lambda x: FINAL_RANGE[1][0] <= x <= FINAL_RANGE[1][1] )
-#         target_high_idx = pos_normal[pos].map(lambda x: FINAL_RANGE[2][0] <= x <= FINAL_RANGE[2][1] )
-#         # target_high_off = pos_normal[pos].map(lambda x: ranges[3][0] <= x <= ranges[3][1] )
-        
-
-#         n_tgt_low = pos_normal[target_low_idx]
-#         n_tgt_high = pos_normal[target_high_idx]
-#         u_tgt_low = pos_unique[target_low_idx]
-#         u_tgt_high = pos_unique[target_high_idx]
-
-#         # # filter by quantile
-#         # n_tgt_low_noPos = n_tgt_low.drop(columns = pos, inplace = False)
-#         # n_tgt_high_noPos = n_tgt_high.drop(columns = pos, inplace = False)
-#         # u_tgt_low_noPos = u_tgt_low.drop(columns = pos, inplace = False)
-#         # u_tgt_high_noPos = u_tgt_high.drop(columns = pos, inplace = False)
-
-#         # n_stdLow = n_tgt_low_noPos.std(axis = 1)
-#         # n_stdHigh = n_tgt_high_noPos.std(axis = 1)
-#         # u_stdLow = u_tgt_low_noPos.std(axis = 1)
-#         # u_stdHigh = u_tgt_high_noPos.std(axis = 1)
-
-#         # n_stdLow_base = n_stdLow.quantile(0.1)
-#         # n_stdLow_top = n_stdLow.quantile(0.9)
-#         # n_stdHigh_base = n_stdHigh.quantile(0.1)
-#         # n_stdHigh_top = n_stdHigh.quantile(0.9)
-#         # u_stdLow_base = u_stdLow.quantile(0.1)
-#         # u_stdLow_top = u_stdLow.quantile(0.9)
-#         # u_stdHigh_base = u_stdHigh.quantile(0.1)
-#         # u_stdHigh_top = u_stdHigh.quantile(0.9)
-
-#         # n_stdLow_tgt = n_stdLow.map(lambda x: n_stdLow_base < x < n_stdLow_top).reindex(range(len(target_low_idx)), fill_value=False)
-#         # n_stdHigh_tgt = n_stdHigh.map(lambda x: n_stdHigh_base < x < n_stdHigh_top).reindex(range(len(target_high_idx)), fill_value=False)
-#         # u_stdLow_tgt = u_stdLow.map(lambda x: u_stdLow_base < x < u_stdLow_top).reindex(range(len(target_low_idx)), fill_value=False)
-#         # u_stdHigh_tgt = u_stdHigh.map(lambda x: u_stdHigh_base < x < u_stdHigh_top).reindex(range(len(target_high_idx)), fill_value=False)
-
-#         # filter by unPos
-#         unMin_low = n_tgt_low[unPos] == 0
-#         unMin_high = n_tgt_high[unPos] == 0
-#         unMin_low_eval = n_tgt_low[unPos] >= 1
-#         unMin_high_eval = n_tgt_high[unPos] >= 1
-
-        
-#         unMin_low = unMin_low.reindex(range(len(target_low_idx)), fill_value=False)
-#         unMin_high = unMin_high.reindex(range(len(target_low_idx)), fill_value=False)
-#         unMin_low_eval = unMin_low_eval.reindex(range(len(target_low_idx)), fill_value=False)
-#         unMin_high_eval = unMin_high_eval.reindex(range(len(target_low_idx)), fill_value=False)
-        
-#         # eval_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt & unMin_low_eval]
-#         # eval_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt & unMin_high_eval]
-#         # target_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt & unMin_low]
-#         # target_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt & unMin_high]
-
-#         eval_low_idx = pos_normal[target_low_idx &  unMin_low_eval]
-#         eval_high_idx = pos_normal[target_high_idx &  unMin_high_eval]
-#         target_low_idx = pos_normal[target_low_idx &  unMin_low]
-#         target_high_idx = pos_normal[target_high_idx &  unMin_high]
-
-#         # # eval_low_idx = n_stdLow.map(lambda x: n_stdLow_top < x).reindex(range(len(target_low_idx)))
-#         # # eval_high_idx = n_stdHigh.map(lambda x: n_stdHigh_top < x).reindex(range(len(target_high_idx)))
-
-#         # eval_low_idx = pos_normal[target_low_idx & eval_low_idx]
-#         # eval_high_idx = pos_normal[target_high_idx & eval_high_idx]
-#         # target_low_idx = pos_normal[target_low_idx & n_stdLow_tgt & u_stdLow_tgt]
-#         # target_high_idx = pos_normal[target_high_idx & n_stdHigh_tgt & u_stdHigh_tgt]
-        
-
-#         print(pos, len(target_low_idx), len(target_high_idx), len(eval_low_idx), len(eval_high_idx))
-
-#         with open(config['contFiles']['data_CT'].format(pos, "low"), "wb") as f:
-#             pickle.dump([target_low_idx, eval_low_idx], f)
-        
-#         with open(config['contFiles']['data_CT'].format(pos, "high"), "wb") as f:
-#             pickle.dump([target_high_idx, eval_high_idx], f)
-
-
-
-    ############### extract data by idx
-    tot_former = 0
+    # # Read files in parallel using multiprocessing
+    # with Pool() as pool:
+    #     results = list(tqdm(pool.imap(partial(read_csv_files, config = config), range(10)), total=10))
     
-    for i in tqdm(range(10)):
+    #     # Unpack results into two separate lists
+    #     normal_counts, unique_counts = zip(*results)
+        
+    #     # Concatenate all the DataFrames at once
+    #     pos_normal = pd.concat(normal_counts, axis=0).reset_index(drop=True)
+    #     pos_unique = pd.concat(unique_counts, axis=0).reset_index(drop=True)
 
-        with open(config['originalData']['raw_CT']+f"_{i}_process_d2.pk", "rb") as f:
-            sent_lower = pickle.load(f)
-            sent_lower = pd.Series(sent_lower)
+    # pos_normal = pos_normal[FINAL_TARGET_POS]    
+    # IN = FINAL_TARGET_POS[0]
+    # NN = FINAL_TARGET_POS[1]
+    # pos_normal_idx = pos_normal.apply(lambda x: (FINAL_RANGE[0][0] <= x[IN] <= FINAL_RANGE[0][1]) and (FINAL_RANGE[0][0] <= x[NN] <= FINAL_RANGE[0][1]), axis = 1)
+    # pos_normal = pos_normal[pos_normal_idx]
+    # print(len(pos_normal))
+    # # pos_normal = pos_normal.sample(n = 45000, random_state= 42)
+    # pos_normal.columns = ["pos1", "pos2"]
 
-        with open(config['originalData']['raw_CT']+f"_{i}_process_d3.pk", "rb") as f:
-            sent_pos = pickle.load(f)
-            sent_pos = pd.Series([i[1] for i in sent] for sent in sent_pos)
+    # grouped_df, group_totals = balanced_grouping(pos_normal)
+    # print(group_totals)
+
+    # with open(config['contFiles']['data_CT'].format("groups"), "wb") as f:
+    #     pickle.dump(grouped_df, f)
+
+
+    # with open(config['contFiles']['data_CT'].format("groups"), "rb") as f:
+    #     grouped_df = pickle.load(f)
+    
+    # ############# extract data by idx
+    # tot_former = 0
+    
+    # for i in [0]:
+
+    #     with open(config['originalData']['raw_CT']+f"_{i}_process_d2.pk", "rb") as f:
+    #         sent_lower = pickle.load(f)
+    #         sent_lower = pd.Series(sent_lower)
+
+    #     with open(config['originalData']['raw_CT']+f"_{i}_process_d3.pk", "rb") as f:
+    #         sent_pos = pickle.load(f)
+    #         sent_pos = pd.Series([i[1] for i in sent] for sent in sent_pos)
             
-        sent_lower.index = pd.RangeIndex(start=tot_former, stop=tot_former+len(sent_lower))
-        sent_pos.index = pd.RangeIndex(start=tot_former, stop=tot_former+len(sent_pos))
+    #     sent_lower.index = pd.RangeIndex(start=tot_former, stop=tot_former+len(sent_lower))
+    #     sent_pos.index = pd.RangeIndex(start=tot_former, stop=tot_former+len(sent_pos))
 
-        print(sent_lower.head(), sent_pos.head(), len(sent_lower), len(sent_pos))
-    
-        for pos in tqdm(FINAL_TARGET_POS):
-            
-            with open(config['contFiles']['data_CT'].format(pos, "low"), "rb") as f:
-                idx_low, eval_idx_low = pickle.load(f)
-            
-            with open(config['contFiles']['data_CT'].format(pos, "high"), "rb") as f:
-                idx_high, eval_idx_high = pickle.load(f) 
-
-            print(idx_low.head(), idx_high.head())
-             
-            idx_low = idx_low.loc[(idx_low.index > tot_former) & (idx_low.index < (tot_former + len(sent_lower)))].index
-            idx_high = idx_high.iloc[(idx_high.index > tot_former) & (idx_high.index < (tot_former + len(sent_lower)))].index
-            eval_idx_low = eval_idx_low.loc[(eval_idx_low.index > tot_former) & (eval_idx_low.index < (tot_former + len(sent_lower)))].index
-            eval_idx_high = eval_idx_high.loc[(eval_idx_high.index > tot_former) & (eval_idx_high.index < (tot_former + len(sent_lower)))].index
-
-            sent_low = sent_lower[idx_low]
-            sent_high = sent_lower[idx_high]
-            label_low = sent_pos[idx_low]
-            label_high = sent_pos[idx_high]
-
-            eval_sent_low = sent_lower[eval_idx_low]
-            eval_sent_high = sent_lower[eval_idx_high]
-            eval_label_low = sent_pos[eval_idx_low]
-            eval_label_high = sent_pos[eval_idx_high]
-
-
-            with open(config['contFiles']['data_CT_str'].format(i, pos, "low"), "wb") as f:
-                pickle.dump([sent_low, label_low, eval_sent_low, eval_label_low], f)
-            
-            with open(config['contFiles']['data_CT_str'].format(i, pos, "high"), "wb") as f:
-                pickle.dump([sent_high, label_high, eval_sent_high, eval_label_high], f)   
-
-        tot_former += len(sent_lower)
-
-
-
-    train_dataset_dic = {}
-    eval_dataset_dic = {}
-    eval_dataset_df = pd.DataFrame(columns = ['text', 'label'])
-
-    for lowHigh in ['low', 'high']:
-        for pos in tqdm(FINAL_TARGET_POS):    
-            
-            serData = pd.Series()
-            serLabel = pd.Series()
-            serEvaldata = pd.Series()
-            serEvalLabel = pd.Series()
-
-            for i in range(10):
-                with open(config['contFiles']['data_CT_str'].format(i, pos, lowHigh), "rb") as f:
-                    data, label, eval_data, eval_label = pickle.load(f)
-                    
-                serData = pd.concat([serData, data], ignore_index = True)
-                serLabel = pd.concat([serLabel, label], ignore_index = True)
-                serEvaldata = pd.concat([serEvaldata, eval_data], ignore_index = True)
-                serEvalLabel = pd.concat([serEvalLabel, eval_label], ignore_index = True)
+    #     print(sent_lower.head(), sent_pos.head(), len(sent_lower), len(sent_pos))
         
-            serData = serData.reset_index(drop = True)
-            serLabel = serLabel.reset_index(drop = True)
-            serEvaldata = serEvaldata.reset_index(drop = True)
-            serEvalLabel = serEvalLabel.reset_index(drop = True)
-
-            data = pd.concat([serData, serLabel], axis = 1)
-            eval_data = pd.concat([serEvaldata, serEvalLabel], axis = 1)
-            data.columns = ['text', 'label']
-            eval_data.columns = ['text', 'label']
-
-            train_data = data.sample(n = min(50000, len(data)), random_state=42)
-            eval_data = eval_data.sample(n = min(50000, len(eval_data)), random_state=42)
+    #     for bucket in [0]:
+    #         sample_idx = grouped_df.loc[grouped_df['group'] == bucket].index   
+    #         print(sample_idx)         
+    #         sample_idx = sample_idx[(sample_idx > tot_former) & (sample_idx < (tot_former + len(sent_lower)))]
+    #         print(sample_idx)
             
-            train_dataset_dic[f"{pos}_{lowHigh}"] = train_data.reset_index(drop = True)
-            eval_dataset_dic[f"{pos}_{lowHigh}"] = eval_data.reset_index(drop = True)
+    #         sent = sent_lower.loc[sample_idx]
+    #         pos = sent_pos.loc[sample_idx]
+
+    #         with open(config['contFiles']['data_CT_str'].format(i, bucket), "wb") as f:
+    #             pickle.dump([sent, pos], f)
+
+    #     tot_former += len(sent_lower)
+    # dataset_dic = {}
+    # for bucket in range(5):
+    #     text = pd.Series()
+    #     label = pd.Series()
     
+    #     for i in range(10):
+    #         with open(config['contFiles']['data_CT_str'].format(i, bucket), "rb") as f:
+    #             sent, pos = pickle.load(f)
+    #             sent.name = "text"
+    #             pos.name = "label"
+
+    #             text = pd.concat([text, sent])
+    #             label = pd.concat([label, pos])
+                
+            
+    #     dataset_dic[bucket] = pd.concat([text, label], axis = 1)
+    #     print(dataset_dic[bucket])
+
+    # with open(config['contFiles']['train_dataset_CT'], "wb") as f:
+    #     pickle.dump(dataset_dic, f)
 
 
-        
-    IDed = pd.DataFrame(columns = ["text", 'label'])
-    OODed = pd.DataFrame(columns= ['text', 'label'])
-
-    for pos in tqdm(FINAL_TARGET_POS):   
-        d1 = train_dataset_dic[f"{pos}_low"]
-        d2 = train_dataset_dic[f"{pos}_high"]
-
-        sampledD1 = d1.sample(n = 16384, random_state = 42).reset_index(drop = True)        
-        posSerD1 = sampledD1.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
-        posSetD1 = set(posSerD1.explode().drop_duplicates().to_list())
-        
-        posSerD2 = d2.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
-        d2BothIdx = posSerD2.map(lambda x : all([i in posSetD1 for i in x]))
-        sampledD2 = d2[d2BothIdx].sample(n = 16384, random_state = 42).reset_index(drop = True)
-
-        t2 = sampledD2.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
-        t2 = set(t2.explode().drop_duplicates().to_list())
-        
-        print(len(posSetD1), len(t2), len(posSetD1 - t2), len(t2 - posSetD1))
-
-        ed1 = eval_dataset_dic[f"{pos}_low"]
-        ed2 = eval_dataset_dic[f"{pos}_high"]
-
-        posSerEd1 = ed1.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
-        posSerEd2 = ed2.apply(lambda x: [i for i, j in zip(x['text'], x['label']) if j == pos], axis = 1)
-        ed1BothIdx = posSerEd1.map(lambda x : all([i in posSetD1 for i in x]))
-        ed2BothIdx = posSerEd2.map(lambda x : all([i in posSetD1 for i in x]))
-
-        IDEd1 = ed1[ed1BothIdx].sample(n = min(16384, ed1BothIdx.sum())).reset_index(drop = True)
-        OODEd1 = ed1[~ed1BothIdx].sample(n = min(16384, (~ed1BothIdx).sum())).reset_index(drop = True)
-        IDEd2 = ed2[ed2BothIdx].sample(n = min(16384, ed2BothIdx.sum())).reset_index(drop = True)
-        OODEd2 = ed2[~ed2BothIdx].sample(n = min(16384, (~ed2BothIdx).sum())).reset_index(drop = True)
-
-        IDedTemp = pd.concat([IDEd1, IDEd2], axis = 0)
-        OODedTemp = pd.concat([OODEd1, OODEd2], axis = 0)
-
-        print(len(ed1), len(IDEd1), len(OODEd1))
-        print(len(ed2), len(IDEd2), len(OODEd2))
-
-
-        IDed = pd.concat([IDed, IDedTemp], axis = 0)
-        OODed = pd.concat([OODed, OODedTemp], axis = 0)
-
-    eval_dataset_id = Dataset.from_pandas(IDed.reset_index(drop = True))
-    eval_dataset_od = Dataset.from_pandas(OODed.reset_index(drop = True))
-
-    for key in train_dataset_dic:
-        train_dataset_dic[key] = Dataset.from_pandas(train_dataset_dic[key])
-     
-    with open(config['contFiles']['train_dataset_CT'], "wb") as f:
-        pickle.dump(train_dataset_dic, f)
-
-    with open(config['contFiles']['eval_dataset_CT'], "wb") as f:
-        pickle.dump([eval_dataset_id, eval_dataset_od], f)
-    
-
-    # ## train model
-    # model_name = "FacebookAI/roberta-base"
-    # num_labels = 39  # Number of classes for token classification
-    # tokenizer = AutoTokenizer.from_pretrained(model_name, add_prefix_space=True)
-    # model = AutoModelForTokenClassification.from_pretrained(model_name, num_labels=num_labels)
-    # model.save_pretrained(config['contTrain']['checkpoint_CTModel'].format(0, "base", args.lr))
-
-    # with open(config['contFiles']['train_dataset_CT'], "rb") as f:
-    #     train_dataset_dic = pickle.load(f)
-
-    # with open(config['contFiles']['eval_dataset_CT'], "rb") as f:
-    #     eval_dataset_id, eval_dataset_od = pickle.load(f)
-
-    
-    # train_dataset = {}
-    # for key, value in train_dataset_dic.items():
-    #     pos = key.split("_")[0]
-    #     unPos_idx = [item for item in FINAL_TARGET_POS if item != pos]
-    #     unPos_idx = [config['dataStats']['labelToId'][i] for i in unPos_idx]
-
-    #     f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = None, pos_idx = config['dataStats']['labelToId'][pos])
-    #     train_dataset[key] = value.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
-
-    # train_dataset = {key: val.remove_columns("text") for key, val in train_dataset.items()}
-    # eval_train_dataset = concatenate_datasets([val for key, val in train_dataset.items()])
-
-    # f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config, unPos_idx = None, pos_idx = None)
-    # eval_dataset_id = eval_dataset_id.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
-    # eval_dataset_id = eval_dataset_id.remove_columns('text')
-    # eval_dataset_od = eval_dataset_od.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
-    # eval_dataset_od = eval_dataset_od.remove_columns('text')
-    
-
-
-        
-    #     # Create DataLoaders
-    # if ddp:
-    #     train_dataloader = {key: DataLoader(val, sampler=DistributedSampler(val), batch_size=config['contTrain']['batch_size'], shuffle=False, num_workers = 4, pin_memory = True, collate_fn=debug_collate_fn) for key, val in train_dataset.items()}
-    #     eval_dataloader_id = DataLoader(eval_dataset_id, sampler=DistributedSampler(eval_dataset_id), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
-    #     eval_dataloader_od = DataLoader(eval_dataset_od, sampler=DistributedSampler(eval_dataset_od), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
-    #     eval_train_loader = DataLoader(eval_train_dataset, sampler=DistributedSampler(eval_train_dataset), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True)
-    # else:
-    #     train_dataloader = {key: DataLoader(val, batch_size=config['contTrain']['batch_size'], shuffle=True, collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, ) for key, val in train_dataset.items()}
-    #     eval_dataloader_id = DataLoader(eval_dataset_id, batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
-    #     eval_dataloader_od = DataLoader(eval_dataset_od, batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
-    #     eval_train_loader = DataLoader(eval_train_dataset, batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True)
-
-    # # Move model to GPU if available
-    
-    # if args.ddp:
-    #     model.to(args.local_rank)
-    #     model = DDP(model, device_ids=[args.local_rank])
-    # else:
-    #     model.to(args.device)
-
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0) 
-
-    # num_training_steps = sum([len(i) for i in train_dataloader]) * 10  # Assuming 3 epochs
-    # lr_scheduler = get_scheduler(
-    #     name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
-    # )
-
-    # if args.ddp and dist.get_rank() == 0:
-    #     logging.basicConfig(
-    #         filename=f"trainingSteps_{args.lr}.log", 
-    #         format='%(asctime)s %(levelname)s:%(message)s',
-    #         datefmt='%Y%m%d %H%M%S',
-    #         level=logging.INFO
-    #     )
-    # elif not args.ddp:
-    #     logging.basicConfig(
-    #         filename=f"trainingSteps_{args.lr}.log", 
-    #         format='%(asctime)s %(levelname)s:%(message)s',
-    #         datefmt='%Y%m%d %H%M%S',
-    #         level=logging.INFO
-    # )
-
-    # num_epochs = 10
-
-
-    # # baseline evaluation
+    ## train model
     
     
-    # evaluate(args, config, model, eval_dataloader_id, "id", num_labels, 0, "base")
-    # evaluate(args, config, model, eval_dataloader_od, "ood", num_labels, 0, "base")
-    
-    # for epoch in range(num_epochs):
-    #     for e, subEpoch in enumerate([f"{i}_low" for i in FINAL_TARGET_POS] + [f"{i}_high" for i in FINAL_TARGET_POS]):
-    #         train(args, config, model, train_dataloader[subEpoch], num_labels, optimizer, lr_scheduler, epoch, subEpoch)
 
-    #         evaluate(args, config, model, eval_train_loader, "td", num_labels, epoch, subEpoch)
-    #         evaluate(args, config, model, eval_dataloader_id, "id", num_labels, epoch, subEpoch)
-    #         evaluate(args, config, model, eval_dataloader_od, "ood", num_labels, epoch, subEpoch)
+    model_name = "FacebookAI/roberta-base"
+    num_labels = 39  # Number of classes for token classification
+    tokenizer = AutoTokenizer.from_pretrained(model_name, add_prefix_space=True)
+    model = AutoModelForTokenClassification.from_pretrained(model_name, num_labels=num_labels)
+
+    with open(config['contFiles']['train_dataset_CT'], "rb") as f:
+        dataset_dic = pickle.load(f)
+    
+    datasets = {}
+    for key, value in dataset_dic.items():
+
+        f = partial(tokenize_and_align_labels, tokenizer = tokenizer, args = args, config = config)
+        datasets[key] = value.map(f, batched=True, num_proc = config['contTrain']['num_cores_train'])
+
+    datasets = {key: val.remove_columns("text") for key, val in datasets.items()}
+    train_dataset = concatenate_datasets([datasets[i] for i in range(0,5) if i != args.bucket])
+    eval_dataset = datasets[args.bucket]
+
+    # Create DataLoaders
+    if ddp:
+        train_dataloader = {key: DataLoader(val, sampler=DistributedSampler(val), batch_size=config['contTrain']['batch_size'], shuffle=False, num_workers = 4, pin_memory = True, collate_fn=debug_collate_fn) for key, val in train_dataset.items()}
+        eval_dataloader = DataLoader(eval_dataset, sampler=DistributedSampler(eval_dataset), batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
+    else:
+        train_dataloader = {key: DataLoader(val, batch_size=config['contTrain']['batch_size'], shuffle=True, collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, ) for key, val in train_dataset.items()}
+        eval_dataloader = DataLoader(eval_dataset, batch_size=config['contTrain']['batch_size'], collate_fn=debug_collate_fn, num_workers = 4, pin_memory = True, )
+
+    # Move model to GPU if available
+    
+    if args.ddp:
+        model.to(args.local_rank)
+        model = DDP(model, device_ids=[args.local_rank])
+    else:
+        model.to(args.device)
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0) 
+
+    num_training_steps = len(train_dataloader) * 100  
+    lr_scheduler = get_scheduler(
+        name="linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
+    )
+
+    if args.ddp and dist.get_rank() == 0:
+        logging.basicConfig(
+            filename=f"trainingSteps_{args.lr}_{args.bucket}.log", 
+            format='%(asctime)s %(levelname)s:%(message)s',
+            datefmt='%Y%m%d %H%M%S',
+            level=logging.INFO
+        )
+    elif not args.ddp:
+        logging.basicConfig(
+            filename=f"trainingSteps_{args.lr}_{args.bucket}.log", 
+            format='%(asctime)s %(levelname)s:%(message)s',
+            datefmt='%Y%m%d %H%M%S',
+            level=logging.INFO
+    )
+
+    num_epochs = 100
+
+
+    # baseline evaluation
+    
+    
+    evaluate(args, config, model, eval_dataloader, num_labels, 0)
+    evaluate(args, config, model, eval_dataloader, num_labels, 0)
+    
+    for epoch in range(num_epochs):
+        train(args, config, model, train_dataloader, num_labels, optimizer, lr_scheduler, epoch)
+
+        evaluate(args, config, model, eval_dataloader, num_labels, epoch)
+        evaluate(args, config, model, eval_dataloader, num_labels, epoch)
 
     # ############### filter those which have even duplicated tokens
     # FULL_POS = config['dataStats']['correctXPosNoSym']
@@ -1191,7 +1072,7 @@ def main(args, config):
 if __name__ == "__main__":
 
     dp = False
-    ddp = False
+    ddp = True
 
     if ddp:
         from torch.nn.parallel import DistributedDataParallel as DDP
@@ -1208,6 +1089,7 @@ if __name__ == "__main__":
         from torch.nn import DataParallel
 
     parser = ArgumentParser()
+    parser.add_argument("--bucket", required = True, type = int)
     parser.add_argument("--lr", required = True, type = float)
     args1 = parser.parse_args()
 
@@ -1215,12 +1097,13 @@ if __name__ == "__main__":
     args = Namespace(
         # yaml_path = "/home/hyohyeongjang/2024SWELL/codes/v2_config.yaml",
         # yaml_path = "/home/hyohyeongjang/2024SWELL/codes/v3_config.yaml",
-        yaml_path = "/home/hyohyeongjang/2024SWELL/codes/v4_config.yaml",
+        yaml_path = "/home/hyohyeongjang/2024SWELL/codes/v5_config.yaml",
         dp = dp,
         ddp = ddp,
         local_rank = local_rank,
         device = "cuda" if torch.cuda.is_available() else "cpu",
-        lr = args1.lr
+        lr = args1.lr,
+        bucket = args1.bucket
     )
     
     print(args.device)
