@@ -61,8 +61,12 @@ contTrain:
 fineTune:
   checkpoint_FTModel: "/home/hyohyeongjang/2024SWELL/weights/FT/FT_{}_{}_{}_{}" # used in continualTrain
 
-analysis_pos: {'NN': 'OPEN', 'IN': 'CLOSE', 'DT': 'CLOSE', 'JJ': 'OPEN', 'NNS': 'OPEN', 'RB': 'OPEN', 'VB': 'OPEN', 'VBD': 'OPEN', 'CC': 'CLOSE', 'TO': 'CLOSE', 'VBZ': 'OPEN', 'PRP': 'CLOSE', 'CD': 'CLOSE', 'VBP': 'OPEN', 'VBN': 'OPEN', 'VBG': 'OPEN', 'PRP$': 'CLOSE', 'MD': 'CLOSE', 'WDT': 'CLOSE', 'WP': 'CLOSE', 'WRB': 'CLOSE', 'RP': 'CLOSE', 'JJR': 'OPEN', 'JJS': 'OPEN', 'NNP': 'OPEN', 'RBR': 'OPEN', 'EX': 'X', 'PDT': 'CLOSE', 'RBS': 'OPEN', 'FW': 'X', '$': 'X', 'WP$': 'CLOSE', 'NNPS': 'OPEN', 'UH': 'CLOSE', 'POS': 'X', "''": 'X', 'SYM': 'X', 'LS': 'X', '``': 'X'}
-
+analysisMeta:
+  analysis_pos: {'NN': 'OPEN', 'IN': 'CLOSE', 'DT': 'CLOSE', 'JJ': 'OPEN', 'NNS': 'OPEN', 'RB': 'OPEN', 'VB': 'OPEN', 'VBD': 'OPEN', 'CC': 'CLOSE', 'TO': 'CLOSE', 'VBZ': 'OPEN', 'PRP': 'CLOSE', 'CD': 'CLOSE', 'VBP': 'OPEN', 'VBN': 'OPEN', 'VBG': 'OPEN', 'PRP$': 'CLOSE', 'MD': 'CLOSE', 'WDT': 'CLOSE', 'WP': 'CLOSE', 'WRB': 'CLOSE', 'RP': 'CLOSE', 'JJR': 'OPEN', 'JJS': 'OPEN', 'NNP': 'OPEN', 'RBR': 'OPEN', 'EX': 'X', 'PDT': 'CLOSE', 'RBS': 'OPEN', 'FW': 'X', '$': 'X', 'WP$': 'CLOSE', 'NNPS': 'OPEN', 'UH': 'CLOSE', 'POS': 'X', "''": 'X', 'SYM': 'X', 'LS': 'X', '``': 'X'}
+  dup_dic_micro: "/home/hyohyeongjang/2024SWELL/outputs_file/duplicate_micro.csv" 
+  dup_dic_macro: "/home/hyohyeongjang/2024SWELL/outputs_file/duplicate_macro.csv" 
+  analysis3: "/home/hyohyeongjang/2024SWELL/codes/trainingSteps_2e-05_3.log"
+  
 analysis: "/home/hyohyeongjang/2024SWELL/codes/trainingSteps_2e-05_2.log"
 analysis1: /home/hyohyeongjang/2024SWELL/codes/trainingSteps_2e-05_0.log
 analysis2: "/home/hyohyeongjang/2024SWELL/codes/trainingSteps_1e-06.log"
