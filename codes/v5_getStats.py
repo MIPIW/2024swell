@@ -923,7 +923,7 @@ def main(args, config):
     # train model
     
     NUM_EVAL_BUCKET = 5
-    num_epochs = 20
+    num_epochs = 15
     num_subEpoch = NUM_SUBBUCKET - NUM_EVAL_BUCKET
 
     model_name = "FacebookAI/roberta-base"
